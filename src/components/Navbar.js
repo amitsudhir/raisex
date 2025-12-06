@@ -8,21 +8,33 @@ const Navbar = ({ account, onConnect }) => {
   };
 
   const switchNetwork = async () => {
+    if (!window.ethereum) {
+      alert("Please install MetaMask!");
+      return;
+    }
+
     try {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: NETWORK_CONFIG.chainId }],
       });
+      alert("Switched to Base Sepolia!");
     } catch (error) {
+      // If network doesn't exist, add it
       if (error.code === 4902) {
         try {
           await window.ethereum.request({
             method: "wallet_addEthereumChain",
             params: [NETWORK_CONFIG],
           });
+          alert("Base Sepolia network added!");
         } catch (addError) {
           console.error("Failed to add network:", addError);
+          alert("Failed to add network: " + addError.message);
         }
+      } else {
+        console.error("Failed to switch network:", error);
+        alert("Failed to switch network: " + error.message);
       }
     }
   };

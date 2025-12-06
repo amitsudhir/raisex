@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
+import { CURRENCY, ethToInr } from "../config/config";
 
 const CampaignCard = ({ campaign, onClick }) => {
   const [timeLeft, setTimeLeft] = useState("");
@@ -92,13 +93,13 @@ const CampaignCard = ({ campaign, onClick }) => {
         <div style={styles.stats}>
           <div style={styles.stat}>
             <div style={styles.statValue}>
-              {ethers.formatEther(campaign.raisedAmount)} ETH
+              {CURRENCY.symbol}{ethToInr(ethers.formatEther(campaign.raisedAmount))}
             </div>
             <div style={styles.statLabel}>Raised</div>
           </div>
           <div style={styles.stat}>
             <div style={styles.statValue}>
-              {ethers.formatEther(campaign.goalAmount)} ETH
+              {CURRENCY.symbol}{ethToInr(ethers.formatEther(campaign.goalAmount))}
             </div>
             <div style={styles.statLabel}>Goal</div>
           </div>

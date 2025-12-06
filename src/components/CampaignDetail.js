@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { getContract } from "../config/contract";
+import { CURRENCY, ethToInr, inrToEth } from "../config/config";
 
 const CampaignDetail = ({ campaign, account, onClose, onSuccess }) => {
   const [donateAmount, setDonateAmount] = useState("");
@@ -162,15 +163,15 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess }) => {
           <div style={styles.stats}>
             <div style={styles.statBox}>
               <div style={styles.statValue}>
-                {ethers.formatEther(campaign.raisedAmount)} ETH
+                {CURRENCY.symbol}{ethToInr(ethers.formatEther(campaign.raisedAmount))}
               </div>
-              <div style={styles.statLabel}>Raised</div>
+              <div style={styles.statLabel}>Raised ({ethers.formatEther(campaign.raisedAmount)} ETH)</div>
             </div>
             <div style={styles.statBox}>
               <div style={styles.statValue}>
-                {ethers.formatEther(campaign.goalAmount)} ETH
+                {CURRENCY.symbol}{ethToInr(ethers.formatEther(campaign.goalAmount))}
               </div>
-              <div style={styles.statLabel}>Goal</div>
+              <div style={styles.statLabel}>Goal ({ethers.formatEther(campaign.goalAmount)} ETH)</div>
             </div>
             <div style={styles.statBox}>
               <div style={styles.statValue}>{campaign.donorsCount.toString()}</div>
@@ -197,15 +198,25 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess }) => {
 
           {canDonate && (
             <div style={styles.donateSection}>
-              <input
-                type="number"
-                value={donateAmount}
-                onChange={(e) => setDonateAmount(e.target.value)}
-                placeholder="Amount in ETH"
-                step="0.001"
-                min="0.001"
-                style={styles.input}
-              />
+              <div style={styles.inputGroup}>
+                <span style={styles.currencySymbol}>{CURRENCY.symbol}</span>
+                <input
+                  type="number"
+                  value={donateAmount ? (parseFloat(donateAmount) * CURRENCY.ethToInr).toFixed(0) : ''}
+                  onChange={(e) => {
+                    const inrValue = e.target.value;
+                    const ethValue = inrToEth(inrValue);
+                    setDonateAmount(ethValue);
+                  }}
+                  placeholder="Amount in INR"
+                  step="100"
+                  min="100"
+                  style={styles.input}
+                />
+              </div>
+              <div style={styles.ethEquivalent}>
+                ≈ {donateAmount || '0'} ETH
+              </div>
               <button
                 onClick={handleDonate}
                 disabled={loading}
@@ -400,16 +411,34 @@ const styles = {
     fontWeight: "700",
   },
   donateSection: {
-    display: "flex",
-    gap: "1rem",
     marginBottom: "1rem",
+  },
+  inputGroup: {
+    display: "flex",
+    alignItems: "center",
+    border: "2px solid #e5e7eb",
+    borderRadius: "12px",
+    overflow: "hidden",
+    marginBottom: "0.5rem",
+  },
+  currencySymbol: {
+    padding: "1rem",
+    background: "#f3f4f6",
+    fontWeight: "600",
+    fontSize: "1.2rem",
   },
   input: {
     flex: 1,
     padding: "1rem",
-    border: "2px solid #e5e7eb",
-    borderRadius: "12px",
+    border: "none",
     fontSize: "1rem",
+    outline: "none",
+  },
+  ethEquivalent: {
+    fontSize: "0.9rem",
+    color: "#6b7280",
+    marginBottom: "1rem",
+    textAlign: "right",
   },
   donateBtn: {
     padding: "1rem 2rem",

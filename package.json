@@ -20,7 +20,7 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "build:contracts": "npx hardhat compile",
-    "deploy:base": "npx hardhat compile && node scripts/deploy-base.js --network baseSepolia",
+    "deploy:base": "npx hardhat run scripts/deploy-base.js --network baseSepolia",
     "seed:demo": "node scripts/seed-demo.js",
     "test:contracts": "npx hardhat test",
     "copy:abi": "node scripts/copy-abi.js",

@@ -28,8 +28,8 @@ const SetupChecker = () => {
       isSeeded: false,
     };
 
-    // Check if contract address is updated
-    if (CONTRACT_ADDRESS && CONTRACT_ADDRESS !== "0xf86eFF9d6B0e471776828C826A0D61107D737A09") {
+    // Check if contract address exists (any valid address)
+    if (CONTRACT_ADDRESS && CONTRACT_ADDRESS.startsWith("0x") && CONTRACT_ADDRESS.length === 42) {
       newStatus.contractAddress = true;
     }
 

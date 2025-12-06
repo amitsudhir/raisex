@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { getReadOnlyContract } from "../config/contract";
+import { CURRENCY, ethToInr } from "../config/config";
 
 const Analytics = () => {
   const [stats, setStats] = useState({
@@ -86,8 +87,8 @@ const Analytics = () => {
 
         <div style={styles.statCard}>
           <div style={styles.statIcon}>💰</div>
-          <div style={styles.statValue}>{parseFloat(stats.totalRaised).toFixed(4)} ETH</div>
-          <div style={styles.statLabel}>Total Raised</div>
+          <div style={styles.statValue}>{CURRENCY.symbol}{ethToInr(stats.totalRaised)}</div>
+          <div style={styles.statLabel}>Total Raised ({parseFloat(stats.totalRaised).toFixed(4)} ETH)</div>
         </div>
 
         <div style={styles.statCard}>
@@ -115,7 +116,7 @@ const Analytics = () => {
                   <div style={styles.topCategory}>{campaign.category}</div>
                 </div>
                 <div style={styles.topAmount}>
-                  {ethers.formatEther(campaign.raisedAmount)} ETH
+                  {CURRENCY.symbol}{ethToInr(ethers.formatEther(campaign.raisedAmount))}
                 </div>
               </div>
             ))}

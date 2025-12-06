@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ethers } from "ethers";
 import { getContract } from "../config/contract";
-import { CATEGORIES } from "../config/config";
+import { CATEGORIES, CURRENCY, inrToEth } from "../config/config";
 
 const CreateCampaign = ({ onSuccess, onClose }) => {
   const [formData, setFormData] = useState({
@@ -29,7 +29,9 @@ const CreateCampaign = ({ onSuccess, onClose }) => {
     try {
       const { contract } = await getContract();
 
-      const goalInWei = ethers.parseEther(formData.goalAmount);
+      // Convert INR to ETH
+      const goalInEth = inrToEth(formData.goalAmount);
+      const goalInWei = ethers.parseEther(goalInEth);
       const durationInSeconds = parseInt(formData.duration) * 24 * 60 * 60; // Convert days to seconds
 
       const tx = await contract.createCampaign(
@@ -91,18 +93,21 @@ const CreateCampaign = ({ onSuccess, onClose }) => {
 
           <div style={styles.row}>
             <div style={styles.formGroup}>
-              <label style={styles.label}>Goal Amount (ETH) *</label>
+              <label style={styles.label}>Goal Amount ({CURRENCY.symbol} INR) *</label>
               <input
                 type="number"
                 name="goalAmount"
                 value={formData.goalAmount}
                 onChange={handleChange}
                 required
-                step="0.001"
-                min="0.001"
+                step="1000"
+                min="1000"
                 style={styles.input}
-                placeholder="0.1"
+                placeholder="50000"
               />
+              <div style={styles.ethEquivalent}>
+                ≈ {formData.goalAmount ? inrToEth(formData.goalAmount) : '0'} ETH
+              </div>
             </div>
 
             <div style={styles.formGroup}>
@@ -243,6 +248,11 @@ const styles = {
     fontSize: "1rem",
     boxSizing: "border-box",
     transition: "border-color 0.3s",
+  },
+  ethEquivalent: {
+    fontSize: "0.85rem",
+    color: "#6b7280",
+    marginTop: "0.25rem",
   },
   row: {
     display: "flex",
