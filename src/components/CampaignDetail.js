@@ -119,7 +119,7 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess }) => {
   const isOwner = account && account.toLowerCase() === campaign.owner.toLowerCase();
   const canWithdraw = isOwner && !campaign.withdrawn && status === "FUNDED";
   const canRefund = !isOwner && status === "EXPIRED" && parseFloat(myContribution) > 0;
-  const canDonate = status === "ACTIVE" && !isOwner;
+  const canDonate = status === "ACTIVE";
 
   return (
     <div style={styles.overlay} onClick={onClose}>

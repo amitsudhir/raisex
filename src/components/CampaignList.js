@@ -33,26 +33,39 @@ const CampaignList = ({ account, refreshTrigger }) => {
   const getFilteredCampaigns = () => {
     const now = Math.floor(Date.now() / 1000);
     
+    let filtered = campaigns;
+    
+    // Filter by status
     switch (filter) {
       case "ACTIVE":
-        return campaigns.filter(
+        filtered = campaigns.filter(
           (c) =>
             Number(c.deadline) > now &&
             Number(c.raisedAmount) < Number(c.goalAmount)
         );
+        break;
       case "FUNDED":
-        return campaigns.filter(
+        filtered = campaigns.filter(
           (c) => Number(c.raisedAmount) >= Number(c.goalAmount)
         );
+        break;
       case "EXPIRED":
-        return campaigns.filter(
+        filtered = campaigns.filter(
           (c) =>
             Number(c.deadline) <= now &&
             Number(c.raisedAmount) < Number(c.goalAmount)
         );
+        break;
+      case "MY_CAMPAIGNS":
+        filtered = campaigns.filter(
+          (c) => account && c.owner.toLowerCase() === account.toLowerCase()
+        );
+        break;
       default:
-        return campaigns;
+        filtered = campaigns;
     }
+    
+    return filtered;
   };
 
   const filteredCampaigns = getFilteredCampaigns();
@@ -69,7 +82,7 @@ const CampaignList = ({ account, refreshTrigger }) => {
   return (
     <div style={styles.container}>
       <div style={styles.filters}>
-        {["ALL", "ACTIVE", "FUNDED", "EXPIRED"].map((f) => (
+        {["ALL", "ACTIVE", "FUNDED", "EXPIRED", "MY_CAMPAIGNS"].map((f) => (
           <button
             key={f}
             style={{
@@ -77,8 +90,9 @@ const CampaignList = ({ account, refreshTrigger }) => {
               ...(filter === f ? styles.filterBtnActive : {}),
             }}
             onClick={() => setFilter(f)}
+            disabled={f === "MY_CAMPAIGNS" && !account}
           >
-            {f}
+            {f === "MY_CAMPAIGNS" ? "MY CAMPAIGNS" : f}
           </button>
         ))}
       </div>
@@ -87,19 +101,10 @@ const CampaignList = ({ account, refreshTrigger }) => {
         <div style={styles.empty}>
           <div style={styles.emptyIcon}>📭</div>
           <h3>No campaigns found</h3>
-          <p>Be the first to create a campaign!</p>
-          {campaigns.length === 0 && !loading && (
-            <div style={styles.setupNote}>
-              <p style={styles.setupText}>
-                ⚠️ Make sure you have:
-                <br />
-                1. Deployed the contract on Remix
-                <br />
-                2. Updated CONTRACT_ADDRESS in src/config/config.js
-                <br />
-                3. Updated CONTRACT_ABI in src/config/contract.js
-              </p>
-            </div>
+          {filter === "MY_CAMPAIGNS" ? (
+            <p>You haven't created any campaigns yet. Click "Create Campaign" to start!</p>
+          ) : (
+            <p>Be the first to create a campaign!</p>
           )}
         </div>
       ) : (

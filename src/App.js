@@ -4,6 +4,7 @@ import Navbar from "./components/Navbar";
 import CampaignList from "./components/CampaignList";
 import CreateCampaign from "./components/CreateCampaign";
 import Analytics from "./components/Analytics";
+import MyDonations from "./components/MyDonations";
 import SetupChecker from "./components/SetupChecker";
 
 function App() {
@@ -100,6 +101,15 @@ function App() {
           <button
             style={{
               ...styles.tab,
+              ...(activeTab === "donations" ? styles.tabActive : {}),
+            }}
+            onClick={() => setActiveTab("donations")}
+          >
+            💝 My Donations
+          </button>
+          <button
+            style={{
+              ...styles.tab,
               ...(activeTab === "analytics" ? styles.tabActive : {}),
             }}
             onClick={() => setActiveTab("analytics")}
@@ -116,11 +126,11 @@ function App() {
 
         <SetupChecker />
         
-        {activeTab === "campaigns" ? (
+        {activeTab === "campaigns" && (
           <CampaignList account={account} refreshTrigger={refreshTrigger} />
-        ) : (
-          <Analytics />
         )}
+        {activeTab === "donations" && <MyDonations account={account} />}
+        {activeTab === "analytics" && <Analytics />}
       </div>
 
       {showCreateModal && (

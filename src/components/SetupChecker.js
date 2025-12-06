@@ -87,8 +87,13 @@ const SetupChecker = () => {
     );
   }
 
+  // Don't show anything if everything is good and no wallet connected
+  if (allGood && !isDemoMode) {
+    return null;
+  }
+
   if (allGood) {
-    // Show success banner
+    // Show success banner only in demo mode
     return (
       <div style={styles.successBanner}>
         <span style={styles.successIcon}>✅</span>
