@@ -1,56 +1,70 @@
-# CrowdFund DApp
+# 🚀 Crowdfund DApp - Setup
 
-A decentralized crowdfunding application built with React and Solidity.
+## ⚡ Quick Start
 
-## Features
-
-- Connect MetaMask wallet
-- Donate ETH to the crowdfund
-- Check total balance
-- Check your contribution
-- Withdraw funds (owner only)
-
-## Contract Details
-
-- **Network**: Base Sepolia
-- **Contract Address**: `0xf86eFF9d6B0e471776828C826A0D61107D737A09`
-- **End Time**: December 30, 2025
-
-## Setup
-
-1. Clone the repository:
 ```bash
-git clone <your-repo-url>
-cd BizThon
-```
-
-2. Install dependencies:
-```bash
-cd crowdfund
+# 1. Install
 npm install
-```
 
-3. Start the development server:
-```bash
+# 2. Setup .env
+cp .env.example .env
+# Edit .env and add: DEPLOYER_PRIVATE_KEY=0xYourPrivateKey
+
+# 3. Deploy & Seed (auto-creates 3 demo campaigns)
+npm run demo:setup
+
+# 4. Start
 npm start
 ```
 
-4. Make sure you have:
-   - MetaMask installed
-   - Connected to Base Sepolia network
-   - Test ETH in your wallet (get from [Base Sepolia Faucet](https://www.alchemy.com/faucets/base-sepolia))
+**Visit: http://localhost:3000?demo=1**
 
-## Smart Contract
+---
 
-The smart contract is deployed on Base Sepolia testnet. Key features:
-- Time-limited funding period
-- Goal amount tracking
-- One donation per address
-- Owner-only withdrawal
+## 🎯 What You Get
 
-## Technologies Used
+- ✅ Contract deployed to Base Sepolia
+- ✅ 3 demo campaigns with donations
+- ✅ Demo mode UI (clean & professional)
+- ✅ Ready for hackathon presentation
 
-- React
-- ethers.js v6
-- Solidity ^0.8.10
-- Bootstrap CSS
+---
+
+## 📝 Commands
+
+```bash
+npm run demo:setup    # Deploy + seed everything
+npm run deploy:base   # Deploy contract only
+npm run seed:demo     # Seed campaigns only
+npm start             # Start app
+```
+
+---
+
+## 🎬 Demo Mode
+
+Add `?demo=1` to URL for clean UI:
+- Hides dev panels
+- Shows "Demo Mode" banner
+- Professional look for judges
+
+---
+
+## 🌐 Deploy Live
+
+```bash
+git push origin main
+# Then deploy on Vercel
+```
+
+---
+
+## 📊 Seeded Campaigns
+
+1. Community Center (80% funded)
+2. Medical Equipment (10% funded)
+3. Coding Bootcamp (40% funded)
+
+---
+
+**That's it! Everything automated.**

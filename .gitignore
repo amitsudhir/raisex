@@ -3,3 +3,11 @@ node_modules/
 *.log
 .env
 .env.local
+
+# Hardhat files
+cache/
+artifacts/
+typechain-types/
+
+# Keep frontend artifacts
+!src/artifacts/

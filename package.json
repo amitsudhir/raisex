@@ -18,7 +18,20 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "build:contracts": "npx hardhat compile",
+    "deploy:base": "npx hardhat compile && node scripts/deploy-base.js --network baseSepolia",
+    "seed:demo": "node scripts/seed-demo.js",
+    "test:contracts": "npx hardhat test",
+    "copy:abi": "node scripts/copy-abi.js",
+    "local:node": "npx hardhat node",
+    "deploy:local": "npx hardhat compile && node scripts/deploy-base.js --network localhost",
+    "demo:setup": "npm run deploy:base && npm run seed:demo"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0",
+    "dotenv": "^16.3.1"
   },
   "eslintConfig": {
     "extends": [
