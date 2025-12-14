@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import { getReadOnlyContract, getContract } from "../config/contract";
 import { CURRENCY, ethToInr } from "../config/config";
 import { toast } from "react-toastify";
+import { storeWithdrawal } from "../utils/withdrawalTracker";
 
 const MyCampaigns = ({ account }) => {
   const [campaigns, setCampaigns] = useState([]);
@@ -48,16 +49,38 @@ const MyCampaigns = ({ account }) => {
     }
   };
 
+
+
   const handleWithdraw = async (campaignId) => {
     try {
       setWithdrawing(campaignId);
-      const { contract } = await getContract();
+      const { contract, provider } = await getContract();
+      
+      // Find the campaign to get details
+      const campaign = campaigns.find(c => c.id === campaignId);
       
       toast.info("Initiating withdrawal...");
       const tx = await contract.withdraw(campaignId);
       
       toast.info("Transaction submitted. Waiting for confirmation...");
-      await tx.wait();
+      const receipt = await tx.wait();
+      
+      // Store withdrawal data for future reference
+      if (campaign && receipt.hash) {
+        // Get block details for timestamp
+        const block = await provider.getBlock(receipt.blockNumber);
+        const timestamp = block ? block.timestamp * 1000 : Date.now();
+        
+        storeWithdrawal(
+          account, 
+          campaignId, 
+          receipt.hash, 
+          campaign.raisedAmount, 
+          campaign.title,
+          receipt.blockNumber,
+          timestamp
+        );
+      }
       
       toast.success("Funds withdrawn successfully! 🎉");
       loadMyCampaigns();

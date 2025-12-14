@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { getReadOnlyContract } from "../config/contract";
-import { CURRENCY, ethToInr } from "../config/config";
+import { CURRENCY, ethToInr, CONTRACT_ADDRESS } from "../config/config";
+import { getStoredWithdrawals, getBlockRanges } from "../utils/withdrawalTracker";
 
 const MyWithdrawals = ({ account }) => {
   const [withdrawals, setWithdrawals] = useState([]);
@@ -14,10 +15,26 @@ const MyWithdrawals = ({ account }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account]);
 
+  // Helper function to store withdrawal data (for backward compatibility)
+  const storeWithdrawal = (campaignId, txHash, amount, title) => {
+    try {
+      const stored = getStoredWithdrawals(account);
+      stored[campaignId] = {
+        txHash,
+        amount,
+        title,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`withdrawals_${account.toLowerCase()}`, JSON.stringify(stored));
+    } catch (error) {
+      console.error("Error storing withdrawal:", error);
+    }
+  };
+
   const loadWithdrawals = async () => {
     try {
       setLoading(true);
-      const { contract } = await getReadOnlyContract();
+      const { contract, provider } = await getReadOnlyContract();
       
       // Get all campaigns
       const allCampaigns = await contract.getAllCampaigns();
@@ -36,66 +53,112 @@ const MyWithdrawals = ({ account }) => {
         return;
       }
 
-      // Get withdrawal events - try multiple strategies
+      // Get stored withdrawal data
+      const storedWithdrawals = getStoredWithdrawals(account);
+
+      // Get withdrawal events - try multiple strategies with better block range handling
       const filter = contract.filters.FundsWithdrawn();
       let events = [];
       
-      // Strategy 1: Try to get events from contract deployment
-      try {
-        console.log("Fetching withdrawal events from contract deployment...");
-        events = await contract.queryFilter(filter, 0, "latest");
-        console.log("Found events:", events.length);
-      } catch (error) {
-        console.log("Strategy 1 failed, trying recent blocks:", error);
-        
-        // Strategy 2: Try last 500,000 blocks (Base Sepolia is fast, this covers months)
+      // Get current block number for better range calculation
+      const currentBlock = await provider.getBlockNumber();
+      console.log("Current block:", currentBlock);
+      
+      // More aggressive block range strategy - try to find ALL withdrawal events
+      const blockRanges = [
+        { from: Math.max(0, currentBlock - 500000), to: "latest", desc: "last 3 days" },
+        { from: Math.max(0, currentBlock - 1000000), to: "latest", desc: "last 6 days" },
+        { from: Math.max(0, currentBlock - 2000000), to: "latest", desc: "last 12 days" },
+        { from: Math.max(0, currentBlock - 5000000), to: "latest", desc: "last 30 days" },
+        { from: Math.max(0, currentBlock - 10000000), to: "latest", desc: "last 60 days" },
+        { from: 0, to: "latest", desc: "from contract deployment" }
+      ];
+
+      for (const range of blockRanges) {
         try {
-          events = await contract.queryFilter(filter, -500000, "latest");
-          console.log("Found events in recent blocks:", events.length);
-        } catch (err) {
-          console.log("Strategy 2 failed, trying smaller range:", err);
-          
-          // Strategy 3: Try last 50,000 blocks
-          try {
-            events = await contract.queryFilter(filter, -50000, "latest");
-            console.log("Found events in smaller range:", events.length);
-          } catch (err2) {
-            console.log("All strategies failed, using campaign data:", err2);
+          console.log(`Fetching withdrawal events from ${range.desc} (blocks ${range.from} to ${range.to})...`);
+          events = await contract.queryFilter(filter, range.from, range.to);
+          console.log(`Found ${events.length} events in ${range.desc}`);
+          if (events.length > 0) {
+            // Filter events for this user to see if we have any matches
+            const userEvents = events.filter(e => 
+              e.args.owner.toLowerCase() === account.toLowerCase()
+            );
+            console.log(`Found ${userEvents.length} withdrawal events for user`);
+            if (userEvents.length > 0) break;
           }
+        } catch (error) {
+          console.log(`Failed to fetch from ${range.desc}:`, error.message);
+          continue;
         }
       }
       
-      // If we found events, process them
-      if (events.length > 0) {
-        const withdrawalData = events
-          .filter((event) => 
-            event.args.owner.toLowerCase() === account.toLowerCase()
-          )
-          .map((event) => {
-            const campaign = allCampaigns.find(
-              (c) => c.id.toString() === event.args.campaignId.toString()
-            );
-            return {
-              campaignId: event.args.campaignId.toString(),
-              campaignTitle: campaign?.title || "Unknown Campaign",
-              amount: ethers.formatEther(event.args.amount),
-              txHash: event.transactionHash,
-            };
-          })
-          .reverse();
-
-        setWithdrawals(withdrawalData);
-      } else {
-        // No events found, use campaign data as fallback
-        const withdrawalData = myWithdrawnCampaigns.map((campaign) => ({
-          campaignId: campaign.id.toString(),
+      // Process withdrawal data
+      const withdrawalData = [];
+      
+      for (const campaign of myWithdrawnCampaigns) {
+        const campaignId = campaign.id.toString();
+        let withdrawalInfo = {
+          campaignId,
           campaignTitle: campaign.title,
           amount: ethers.formatEther(campaign.raisedAmount),
-          txHash: "N/A",
-        }));
+          txHash: null,
+          blockNumber: null,
+          timestamp: null
+        };
 
-        setWithdrawals(withdrawalData);
+        // Try to find event for this campaign
+        const event = events.find(e => 
+          e.args.campaignId.toString() === campaignId &&
+          e.args.owner.toLowerCase() === account.toLowerCase()
+        );
+
+        if (event) {
+          // Found event - use real transaction data
+          withdrawalInfo.txHash = event.transactionHash;
+          withdrawalInfo.blockNumber = event.blockNumber;
+          withdrawalInfo.amount = ethers.formatEther(event.args.amount);
+          
+          // Get block timestamp
+          try {
+            const block = await provider.getBlock(event.blockNumber);
+            withdrawalInfo.timestamp = block ? block.timestamp * 1000 : Date.now();
+          } catch (error) {
+            console.log("Failed to get block timestamp:", error);
+            withdrawalInfo.timestamp = Date.now();
+          }
+          
+          // Store for future reference
+          storeWithdrawal(campaignId, event.transactionHash, withdrawalInfo.amount, campaign.title);
+        } else if (storedWithdrawals[campaignId]) {
+          // Use stored data if available
+          const stored = storedWithdrawals[campaignId];
+          withdrawalInfo.txHash = stored.txHash;
+          withdrawalInfo.timestamp = stored.timestamp;
+          withdrawalInfo.blockNumber = stored.blockNumber;
+        }
+
+        withdrawalData.push(withdrawalInfo);
       }
+
+      // Sort by newest first (block number > timestamp > campaign ID)
+      withdrawalData.sort((a, b) => {
+        // First priority: block number (newest first)
+        if (a.blockNumber && b.blockNumber) {
+          return b.blockNumber - a.blockNumber;
+        }
+        // Second priority: timestamp (newest first)
+        if (a.timestamp && b.timestamp) {
+          return b.timestamp - a.timestamp;
+        }
+        // Third priority: if one has timestamp and other doesn't
+        if (a.timestamp && !b.timestamp) return -1;
+        if (!a.timestamp && b.timestamp) return 1;
+        // Last priority: campaign ID (higher ID = newer)
+        return parseInt(b.campaignId) - parseInt(a.campaignId);
+      });
+
+      setWithdrawals(withdrawalData);
     } catch (error) {
       console.error("Failed to load withdrawals:", error);
       setWithdrawals([]);
@@ -176,10 +239,23 @@ const MyWithdrawals = ({ account }) => {
                     {CURRENCY.symbol}{ethToInr(withdrawal.amount)}
                   </div>
                   <div style={styles.ethAmount}>{withdrawal.amount} ETH</div>
+                  
+                  {/* Date/Time Section */}
+                  {(withdrawal.timestamp || withdrawal.blockNumber) && (
+                    <div style={styles.dateSection}>
+                      <div style={styles.dateLabel}>Withdrawn On</div>
+                      <div style={styles.dateValue}>
+                        {withdrawal.timestamp 
+                          ? new Date(withdrawal.timestamp).toLocaleString()
+                          : "Date not available"
+                        }
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div style={styles.details}>
-                  {withdrawal.txHash !== "N/A" ? (
+                <div style={styles.transactionSection}>
+                  {withdrawal.txHash && withdrawal.txHash !== "N/A" ? (
                     <>
                       <a
                         href={`https://sepolia.basescan.org/tx/${withdrawal.txHash}`}
@@ -189,13 +265,33 @@ const MyWithdrawals = ({ account }) => {
                       >
                         🔗 View Transaction on BaseScan
                       </a>
-                      <div style={styles.txHash}>
-                        {withdrawal.txHash.slice(0, 20)}...{withdrawal.txHash.slice(-20)}
+                      <div style={styles.txHashSection}>
+                        <div style={styles.txHashLabel}>Transaction Hash</div>
+                        <div style={styles.txHash}>
+                          {withdrawal.txHash}
+                        </div>
                       </div>
                     </>
                   ) : (
-                    <div style={styles.historicalNote}>
-                      ℹ️ Historical withdrawal - Transaction details not available in recent blocks
+                    <div style={styles.fallbackOptions}>
+                      <div style={styles.fallbackLinks}>
+                        <a
+                          href={`https://sepolia.basescan.org/address/${account}#internaltx`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={styles.fallbackButton}
+                        >
+                          📋 View Your Transactions
+                        </a>
+                        <a
+                          href={`https://sepolia.basescan.org/address/${CONTRACT_ADDRESS}#events`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={styles.fallbackButton}
+                        >
+                          📊 View Contract Events
+                        </a>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -210,7 +306,7 @@ const MyWithdrawals = ({ account }) => {
 
 const styles = {
   container: {
-    maxWidth: "1200px",
+    maxWidth: "800px",
     margin: "0 auto",
     padding: "2rem 1rem",
   },
@@ -255,10 +351,15 @@ const styles = {
   },
   card: {
     background: "white",
-    borderRadius: "15px",
-    padding: "1.5rem",
-    boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
-    border: "2px solid #e5e7eb",
+    borderRadius: "20px",
+    padding: "2rem",
+    boxShadow: "0 8px 25px rgba(0,0,0,0.08)",
+    border: "1px solid #f1f5f9",
+    transition: "all 0.3s ease",
+    "&:hover": {
+      transform: "translateY(-2px)",
+      boxShadow: "0 12px 35px rgba(0,0,0,0.12)"
+    }
   },
   cardHeader: {
     display: "flex",
@@ -290,14 +391,19 @@ const styles = {
     fontWeight: "600",
   },
   cardBody: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "2rem",
+    display: "flex",
+    flexDirection: "column",
+    gap: "1.5rem",
   },
   amountSection: {
     background: "#f9fafb",
     padding: "1.5rem",
     borderRadius: "12px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: "1rem",
   },
   amountLabel: {
     fontSize: "0.9rem",
@@ -314,11 +420,24 @@ const styles = {
     fontSize: "1rem",
     color: "#6b7280",
   },
-  details: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "1rem",
-    justifyContent: "center",
+  dateSection: {
+    textAlign: "right",
+  },
+  dateLabel: {
+    fontSize: "0.9rem",
+    color: "#6b7280",
+    marginBottom: "0.5rem",
+  },
+  dateValue: {
+    fontSize: "1rem",
+    fontWeight: "600",
+    color: "#374151",
+  },
+  transactionSection: {
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "12px",
+    padding: "1.5rem",
   },
   viewTxButton: {
     display: "block",
@@ -326,30 +445,59 @@ const styles = {
     background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
     color: "white",
     textDecoration: "none",
-    borderRadius: "12px",
+    borderRadius: "10px",
     textAlign: "center",
     fontWeight: "600",
     fontSize: "1rem",
-    transition: "transform 0.2s",
+    transition: "all 0.2s ease",
     cursor: "pointer",
+    marginBottom: "1rem",
+    boxShadow: "0 2px 8px rgba(102, 126, 234, 0.3)",
   },
-  txHash: {
+  txHashSection: {
+    marginTop: "1rem",
+  },
+  txHashLabel: {
     fontSize: "0.85rem",
     color: "#6b7280",
+    marginBottom: "0.5rem",
+    fontWeight: "600",
+  },
+  txHash: {
+    fontSize: "0.8rem",
+    color: "#374151",
     wordBreak: "break-all",
     padding: "0.75rem",
     background: "#f9fafb",
     borderRadius: "8px",
     fontFamily: "monospace",
+    border: "1px solid #e5e7eb",
   },
-  historicalNote: {
-    padding: "1.5rem",
-    background: "#fef3c7",
-    color: "#92400e",
-    borderRadius: "12px",
-    fontSize: "0.95rem",
+  fallbackOptions: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+  },
+  fallbackLinks: {
+    display: "flex",
+    gap: "0.75rem",
+    flexWrap: "wrap",
+  },
+  fallbackButton: {
+    flex: 1,
+    minWidth: "140px",
+    padding: "1rem 1.25rem",
+    background: "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
+    color: "white",
+    textDecoration: "none",
+    borderRadius: "10px",
     textAlign: "center",
-    lineHeight: "1.6",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    transition: "all 0.2s ease",
+    cursor: "pointer",
+    display: "block",
+    boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
   },
   loading: {
     textAlign: "center",

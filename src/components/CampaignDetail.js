@@ -3,6 +3,8 @@ import { ethers } from "ethers";
 import { toast } from "react-toastify";
 import { getContract } from "../config/contract";
 import { CURRENCY, ethToInr, inrToEth } from "../config/config";
+import { storeWithdrawal } from "../utils/withdrawalTracker";
+import { storeDonation } from "../utils/donationTracker";
 
 const CampaignDetail = ({ campaign, account, onClose, onSuccess }) => {
   const [donateAmount, setDonateAmount] = useState("");
@@ -71,12 +73,30 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess }) => {
 
     setLoading(true);
     try {
-      const { contract } = await getContract();
+      const { contract, provider } = await getContract();
       toast.info("Processing donation...");
       const tx = await contract.donate(campaign.id, {
         value: ethers.parseEther(donateAmount),
       });
-      await tx.wait();
+      const receipt = await tx.wait();
+      
+      // Store donation data for future reference
+      if (receipt.hash) {
+        // Get block details for timestamp
+        const block = await provider.getBlock(receipt.blockNumber);
+        const timestamp = block ? block.timestamp * 1000 : Date.now();
+        
+        storeDonation(
+          account,
+          campaign.id.toString(),
+          receipt.hash,
+          donateAmount,
+          campaign.title,
+          receipt.blockNumber,
+          timestamp
+        );
+      }
+      
       toast.success("Donation successful! 🎉");
       setDonateAmount("");
       onSuccess();
@@ -88,13 +108,34 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess }) => {
     }
   };
 
+
+
   const handleWithdraw = async () => {
     setLoading(true);
     try {
       const { contract } = await getContract();
       toast.info("Processing withdrawal...");
       const tx = await contract.withdraw(campaign.id);
-      await tx.wait();
+      const receipt = await tx.wait();
+      
+      // Store withdrawal data for future reference
+      if (receipt.hash) {
+        // Get block details for timestamp
+        const { provider } = await getContract();
+        const block = await provider.getBlock(receipt.blockNumber);
+        const timestamp = block ? block.timestamp * 1000 : Date.now();
+        
+        storeWithdrawal(
+          account,
+          campaign.id.toString(), 
+          receipt.hash, 
+          ethers.formatEther(campaign.raisedAmount), 
+          campaign.title,
+          receipt.blockNumber,
+          timestamp
+        );
+      }
+      
       toast.success("Withdrawal successful! 💰");
       onSuccess();
     } catch (error) {

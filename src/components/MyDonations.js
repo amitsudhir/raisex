@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { getReadOnlyContract } from "../config/contract";
-import { CURRENCY, ethToInr } from "../config/config";
+import { CURRENCY, ethToInr, CONTRACT_ADDRESS } from "../config/config";
+import { getStoredDonations } from "../utils/donationTracker";
 
 const MyDonations = ({ account }) => {
   const [donations, setDonations] = useState([]);
@@ -16,19 +17,102 @@ const MyDonations = ({ account }) => {
   const loadMyDonations = async () => {
     try {
       setLoading(true);
-      const { contract } = await getReadOnlyContract();
+      const { contract, provider } = await getReadOnlyContract();
       const allCampaigns = await contract.getAllCampaigns();
+
+      // Get stored donation data
+      const storedDonations = getStoredDonations(account);
+
+      // Try to fetch donation events for transaction links
+      const filter = contract.filters.DonationReceived();
+      let events = [];
+      
+      try {
+        const currentBlock = await provider.getBlockNumber();
+        // More aggressive search for donation events
+        const blockRanges = [
+          { from: Math.max(0, currentBlock - 1000000), to: "latest", desc: "last 6 days" },
+          { from: Math.max(0, currentBlock - 2000000), to: "latest", desc: "last 12 days" },
+          { from: Math.max(0, currentBlock - 5000000), to: "latest", desc: "last 30 days" },
+          { from: Math.max(0, currentBlock - 10000000), to: "latest", desc: "last 60 days" },
+          { from: 0, to: "latest", desc: "from contract deployment" }
+        ];
+
+        for (const range of blockRanges) {
+          try {
+            console.log(`Fetching donation events from ${range.desc}...`);
+            events = await contract.queryFilter(filter, range.from, range.to);
+            console.log(`Found ${events.length} donation events`);
+            if (events.length > 0) {
+              // Check if we have events for this user
+              const userEvents = events.filter(e => 
+                e.args.donor.toLowerCase() === account.toLowerCase()
+              );
+              console.log(`Found ${userEvents.length} donation events for user`);
+              if (userEvents.length > 0) break;
+            }
+          } catch (error) {
+            console.log(`Failed to fetch ${range.desc}:`, error.message);
+            continue;
+          }
+        }
+      } catch (error) {
+        console.log("Failed to fetch donation events:", error);
+      }
 
       const myDonations = [];
       for (const campaign of allCampaigns) {
         const contribution = await contract.getContribution(campaign.id, account);
         if (contribution > 0) {
+          // Find donation events for this campaign and user
+          const campaignEvents = events.filter(e => 
+            e.args.campaignId.toString() === campaign.id.toString() &&
+            e.args.donor.toLowerCase() === account.toLowerCase()
+          );
+
+          // Get stored donations for this campaign
+          const stored = storedDonations[campaign.id.toString()] || [];
+
           myDonations.push({
             campaign,
             contribution: ethers.formatEther(contribution),
+            transactions: campaignEvents
+              .map(e => ({
+                txHash: e.transactionHash,
+                amount: ethers.formatEther(e.args.amount),
+                blockNumber: e.blockNumber
+              }))
+              .sort((a, b) => (b.blockNumber || 0) - (a.blockNumber || 0)),
+            storedTransactions: stored.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
           });
         }
       }
+
+      // Sort donations by newest first (based on latest transaction or campaign ID)
+      myDonations.sort((a, b) => {
+        // Get the latest transaction for each donation
+        const aLatestTx = a.transactions.length > 0 ? 
+          Math.max(...a.transactions.map(tx => tx.blockNumber || 0)) : 0;
+        const bLatestTx = b.transactions.length > 0 ? 
+          Math.max(...b.transactions.map(tx => tx.blockNumber || 0)) : 0;
+        
+        // Get the latest stored transaction timestamp
+        const aLatestStored = a.storedTransactions.length > 0 ? 
+          Math.max(...a.storedTransactions.map(tx => tx.timestamp || 0)) : 0;
+        const bLatestStored = b.storedTransactions.length > 0 ? 
+          Math.max(...b.storedTransactions.map(tx => tx.timestamp || 0)) : 0;
+        
+        // Compare by block number first
+        if (aLatestTx && bLatestTx) {
+          return bLatestTx - aLatestTx;
+        }
+        // Then by stored timestamp
+        if (aLatestStored && bLatestStored) {
+          return bLatestStored - aLatestStored;
+        }
+        // Finally by campaign ID (higher = newer)
+        return parseInt(b.campaign.id) - parseInt(a.campaign.id);
+      });
 
       setDonations(myDonations);
     } catch (error) {
@@ -129,6 +213,66 @@ const MyDonations = ({ account }) => {
                 </div>
               </div>
             </div>
+            
+            {/* Transaction Links Section */}
+            <div style={styles.transactionSection}>
+              {donation.transactions && donation.transactions.length > 0 ? (
+                <div style={styles.transactionList}>
+                  <div style={styles.transactionLabel}>Your Donation Transactions:</div>
+                  {donation.transactions.slice(0, 3).map((tx, txIndex) => (
+                    <div key={txIndex} style={styles.transactionItem}>
+                      <a
+                        href={`https://sepolia.basescan.org/tx/${tx.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={styles.transactionLink}
+                      >
+                        🔗 {tx.amount} ETH - View on BaseScan
+                      </a>
+                      <div style={styles.transactionDate}>
+                        Transaction from blockchain events
+                      </div>
+                    </div>
+                  ))}
+                  {donation.transactions.length > 3 && (
+                    <div style={styles.moreTransactions}>
+                      +{donation.transactions.length - 3} more transactions
+                    </div>
+                  )}
+                </div>
+              ) : donation.storedTransactions && donation.storedTransactions.length > 0 ? (
+                <div style={styles.transactionList}>
+                  <div style={styles.transactionLabel}>Your Donation Transactions:</div>
+                  {donation.storedTransactions.slice(0, 3).map((tx, txIndex) => (
+                    <div key={txIndex} style={styles.transactionItem}>
+                      <a
+                        href={`https://sepolia.basescan.org/tx/${tx.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={styles.transactionLink}
+                      >
+                        🔗 {tx.amount} ETH - View on BaseScan
+                      </a>
+                      {tx.timestamp && (
+                        <div style={styles.transactionDate}>
+                          {new Date(tx.timestamp).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={styles.noTransactionInfo}>
+                  <div style={styles.noTransactionIcon}>💝</div>
+                  <div style={styles.noTransactionText}>
+                    Transaction details not available
+                  </div>
+                  <div style={styles.noTransactionSubtext}>
+                    Your donation was recorded but transaction hash couldn't be retrieved
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -138,7 +282,7 @@ const MyDonations = ({ account }) => {
 
 const styles = {
   container: {
-    maxWidth: "1200px",
+    maxWidth: "800px",
     margin: "0 auto",
     padding: "2rem 1rem",
   },
@@ -245,6 +389,82 @@ const styles = {
   progressText: {
     fontSize: "0.85rem",
     color: "#6b7280",
+  },
+  transactionSection: {
+    marginTop: "1rem",
+    paddingTop: "1rem",
+    borderTop: "1px solid #e5e7eb",
+  },
+  transactionList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+  },
+  transactionLabel: {
+    fontSize: "0.85rem",
+    color: "#6b7280",
+    fontWeight: "600",
+    marginBottom: "0.75rem",
+  },
+  transactionItem: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  },
+  transactionLink: {
+    display: "inline-block",
+    padding: "0.75rem 1.25rem",
+    background: "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
+    color: "white",
+    textDecoration: "none",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    transition: "all 0.2s ease",
+    cursor: "pointer",
+    boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
+    alignSelf: "flex-start",
+  },
+  transactionDate: {
+    fontSize: "0.8rem",
+    color: "#6b7280",
+    fontStyle: "italic",
+    marginLeft: "0.5rem",
+  },
+  moreTransactions: {
+    fontSize: "0.8rem",
+    color: "#6b7280",
+    fontStyle: "italic",
+    marginTop: "0.25rem",
+  },
+  noTransactionInfo: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "1.5rem 1rem",
+    background: "#f8fafc",
+    borderRadius: "10px",
+    border: "2px dashed #cbd5e1",
+    textAlign: "center",
+    marginTop: "0.5rem",
+  },
+  noTransactionIcon: {
+    fontSize: "1.5rem",
+    marginBottom: "0.5rem",
+    opacity: 0.6,
+  },
+  noTransactionText: {
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    color: "#64748b",
+    marginBottom: "0.25rem",
+  },
+  noTransactionSubtext: {
+    fontSize: "0.8rem",
+    color: "#94a3b8",
+    lineHeight: "1.3",
+    maxWidth: "240px",
   },
   loading: {
     textAlign: "center",
