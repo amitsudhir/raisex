@@ -139,7 +139,6 @@ const CreateCampaign = ({ onSuccess, onClose }) => {
       } else {
         toast.error("Failed to create campaign: " + error.message);
       }
-    }
     } finally {
       setLoading(false);
     }
