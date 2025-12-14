@@ -33,11 +33,21 @@ const ProofUpload = ({ campaignId, onProofUploaded }) => {
         body: formData,
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`IPFS upload failed: ${response.status} - ${errorText}`);
+      }
+
       const result = await response.json();
+      
+      if (!result.IpfsHash) {
+        throw new Error('IPFS upload failed: No hash returned');
+      }
+      
       return result.IpfsHash;
     } catch (error) {
       console.error('IPFS upload error:', error);
-      throw error;
+      throw new Error(`IPFS upload failed: ${error.message}`);
     }
   };
 
@@ -68,20 +78,39 @@ const ProofUpload = ({ campaignId, onProofUploaded }) => {
       return;
     }
 
+    // Check if Pinata API key is configured
+    if (!process.env.REACT_APP_PINATA_JWT) {
+      toast.error('IPFS upload not configured. Please set PINATA_JWT environment variable.');
+      return;
+    }
+
     setUploading(true);
     try {
       toast.info('Uploading to IPFS...');
       const ipfsHash = await uploadToIPFS(selectedFile);
       
+      if (!ipfsHash) {
+        throw new Error('Failed to get IPFS hash');
+      }
+      
       toast.success('File uploaded to IPFS successfully!');
-      onProofUploaded(ipfsHash);
+      toast.info('Please confirm transaction in MetaMask...');
+      
+      await onProofUploaded(ipfsHash);
       
       // Reset form
       setSelectedFile(null);
       document.getElementById('proof-file-input').value = '';
+      toast.success('Proof added to blockchain successfully! 🎉');
     } catch (error) {
       console.error('Upload failed:', error);
-      toast.error('Upload failed. Please try again.');
+      if (error.message.includes('User rejected')) {
+        toast.error('Transaction cancelled by user');
+      } else if (error.message.includes('IPFS')) {
+        toast.error('IPFS upload failed. Please check your connection.');
+      } else {
+        toast.error(`Upload failed: ${error.message}`);
+      }
     } finally {
       setUploading(false);
     }

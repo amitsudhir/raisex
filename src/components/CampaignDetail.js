@@ -97,10 +97,11 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess }) => {
     setLoading(true);
     try {
       const { contract, provider } = await getContract();
-      toast.info("Processing donation...");
+      toast.info("Please confirm donation in MetaMask...");
       const tx = await contract.donate(campaign.id, {
         value: ethers.parseEther(donateAmount),
       });
+      toast.info("Transaction submitted. Waiting for confirmation...");
       const receipt = await tx.wait();
       
       // Store donation data for future reference
@@ -125,7 +126,11 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess }) => {
       onSuccess();
     } catch (error) {
       console.error(error);
-      toast.error("Donation failed: " + error.message);
+      if (error.message.includes('User rejected')) {
+        toast.error("Transaction cancelled by user");
+      } else {
+        toast.error("Donation failed: " + error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -137,8 +142,9 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess }) => {
     setLoading(true);
     try {
       const { contract } = await getContract();
-      toast.info("Processing withdrawal...");
+      toast.info("Please confirm withdrawal in MetaMask...");
       const tx = await contract.withdraw(campaign.id);
+      toast.info("Transaction submitted. Waiting for confirmation...");
       const receipt = await tx.wait();
       
       // Store withdrawal data for future reference
@@ -163,7 +169,11 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess }) => {
       onSuccess();
     } catch (error) {
       console.error(error);
-      toast.error("Withdrawal failed: " + error.message);
+      if (error.message.includes('User rejected')) {
+        toast.error("Transaction cancelled by user");
+      } else {
+        toast.error("Withdrawal failed: " + error.message);
+      }
     } finally {
       setLoading(false);
     }

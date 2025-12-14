@@ -117,7 +117,7 @@ const CreateCampaign = ({ onSuccess, onClose }) => {
       const goalInWei = ethers.parseEther(goalInEth);
       const durationInSeconds = parseInt(formData.duration) * 24 * 60 * 60; // Convert days to seconds
 
-      toast.info("Creating campaign...");
+      toast.info("Please confirm campaign creation in MetaMask...");
       const tx = await contract.createCampaign(
         formData.title,
         formData.description,
@@ -128,12 +128,18 @@ const CreateCampaign = ({ onSuccess, onClose }) => {
         formData.creatorInfo
       );
 
+      toast.info("Transaction submitted. Waiting for confirmation...");
       await tx.wait();
       toast.success("Campaign created successfully! 🎉");
       onSuccess();
     } catch (error) {
       console.error(error);
-      toast.error("Failed to create campaign: " + error.message);
+      if (error.message.includes('User rejected')) {
+        toast.error("Transaction cancelled by user");
+      } else {
+        toast.error("Failed to create campaign: " + error.message);
+      }
+    }
     } finally {
       setLoading(false);
     }
