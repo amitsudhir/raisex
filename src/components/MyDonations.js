@@ -17,10 +17,10 @@ const MyDonations = ({ account }) => {
   const loadMyDonations = async () => {
     try {
       setLoading(true);
-      const { contract } = await getReadOnlyContract();
+      const { contract, provider } = await getReadOnlyContract();
       const allCampaigns = await contract.getAllCampaigns();
 
-      // Get stored donation data (already cleaned up)
+      // Get stored donation data
       const storedDonations = getStoredDonations(account);
 
       const myDonations = [];
@@ -28,7 +28,32 @@ const MyDonations = ({ account }) => {
         const contribution = await contract.getContribution(campaign.id, account);
         if (contribution > 0) {
           // Get stored donations for this campaign
-          const stored = storedDonations[campaign.id.toString()] || [];
+          let stored = storedDonations[campaign.id.toString()] || [];
+
+          // If no stored transactions, try to fetch from blockchain as fallback
+          if (stored.length === 0) {
+            try {
+              const filter = contract.filters.DonationReceived(campaign.id, account);
+              const events = await contract.queryFilter(filter, -10000); // Last ~10k blocks
+              
+              if (events.length > 0) {
+                stored = await Promise.all(events.map(async (event) => {
+                  const block = await provider.getBlock(event.blockNumber);
+                  return {
+                    txHash: event.transactionHash,
+                    amount: ethers.formatEther(event.args.amount),
+                    title: campaign.title,
+                    blockNumber: event.blockNumber,
+                    timestamp: block ? block.timestamp * 1000 : Date.now(),
+                    blockExplorerUrl: `https://sepolia.basescan.org/tx/${event.transactionHash}`,
+                    dateCreated: new Date(block ? block.timestamp * 1000 : Date.now()).toISOString()
+                  };
+                }));
+              }
+            } catch (error) {
+              console.log("Could not fetch blockchain events:", error.message);
+            }
+          }
 
           myDonations.push({
             campaign,
