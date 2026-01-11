@@ -2,6 +2,8 @@
 
 RaiseX — Trust, Raised on Chain. A decentralized crowdfunding platform where you can create campaigns, donate to causes, and track funding progress.
 
+<!-- Updated: Campaigns now visible to all users without wallet connection -->
+
 **Live Platform**: [https://crowdfundweb.vercel.app/](https://crowdfundweb.vercel.app/)
 
 ## Getting Started
