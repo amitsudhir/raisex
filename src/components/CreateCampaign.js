@@ -144,6 +144,10 @@ const CreateCampaign = ({ onSuccess, onClose, standalone = false }) => {
       
       // Only show success after confirmation
       if (receipt.status === 1) {
+        // Invalidate cache to refresh campaign lists
+        const { invalidateCache } = await import("../utils/dataCache");
+        invalidateCache();
+        
         await notifyTransactionConfirmed('campaign', {
           body: `Campaign "${formData.title}" has been created successfully!`
         });

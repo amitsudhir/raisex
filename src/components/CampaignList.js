@@ -22,8 +22,8 @@ const CampaignList = ({ account, refreshTrigger, showHeader = true }) => {
   const loadCampaigns = async () => {
     try {
       setLoading(true);
-      const { contract } = await getReadOnlyContract();
-      const allCampaigns = await contract.getAllCampaigns();
+      const { getCachedCampaigns } = await import("../utils/dataCache");
+      const allCampaigns = await getCachedCampaigns();
       
       // Reverse to show newest first
       setCampaigns([...allCampaigns].reverse());

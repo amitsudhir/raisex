@@ -16,6 +16,7 @@ import Terms from "./components/Terms";
 import Privacy from "./components/Privacy";
 import Footer from "./components/Footer";
 import NetworkChecker from "./components/NetworkChecker";
+import PerformanceDashboard from "./components/PerformanceDashboard";
 import { getReadOnlyContract } from "./config/contract";
 import { notifyWalletConnected, requestNotificationPermission } from "./utils/notifications";
 
@@ -150,6 +151,9 @@ function App() {
           pauseOnHover
           theme="light"
         />
+        
+        {/* Performance Dashboard - only show in development */}
+        {process.env.NODE_ENV === 'development' && <PerformanceDashboard />}
       </div>
     </Router>
   );

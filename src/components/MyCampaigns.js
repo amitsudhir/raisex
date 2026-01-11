@@ -22,51 +22,27 @@ const MyCampaigns = ({ account }) => {
   const loadMyCampaigns = async () => {
     try {
       setLoading(true);
-      const { contract, provider } = await getReadOnlyContract();
-      const allCampaigns = await contract.getAllCampaigns();
+      const { getUserCampaigns } = await import("../utils/dataCache");
+      const userCampaigns = await getUserCampaigns(account);
       
-      const myCampaigns = [];
-      
-      for (const c of allCampaigns) {
-        if (c.owner.toLowerCase() === account.toLowerCase()) {
-          // Try to get creation timestamp from events
-          let creationTimestamp = null;
-          try {
-            const filter = contract.filters.CampaignCreated(c.id);
-            const events = await contract.queryFilter(filter);
-            if (events.length > 0) {
-              const block = await provider.getBlock(events[0].blockNumber);
-              creationTimestamp = block ? block.timestamp * 1000 : null;
-            }
-          } catch (error) {
-            console.log("Could not fetch creation timestamp for campaign", c.id.toString());
-          }
-          
-          myCampaigns.push({
-            id: c.id.toString(),
-            title: c.title,
-            description: c.description,
-            goalAmount: ethers.formatEther(c.goalAmount),
-            raisedAmount: ethers.formatEther(c.raisedAmount),
-            deadline: new Date(Number(c.deadline) * 1000),
-            imageURI: c.imageURI,
-            category: c.category,
-            donorsCount: c.donorsCount.toString(),
-            withdrawn: c.withdrawn,
-            isActive: Number(c.deadline) * 1000 > Date.now(),
-            goalReached: c.raisedAmount >= c.goalAmount,
-            createdAt: creationTimestamp ? new Date(creationTimestamp) : null,
-          });
-        }
-      }
+      const myCampaigns = userCampaigns.map(c => ({
+        id: c.id.toString(),
+        title: c.title,
+        description: c.description,
+        goalAmount: ethers.formatEther(c.goalAmount),
+        raisedAmount: ethers.formatEther(c.raisedAmount),
+        deadline: new Date(Number(c.deadline) * 1000),
+        imageURI: c.imageURI,
+        category: c.category,
+        donorsCount: c.donorsCount.toString(),
+        withdrawn: c.withdrawn,
+        isActive: Number(c.deadline) * 1000 > Date.now(),
+        goalReached: c.raisedAmount >= c.goalAmount,
+        createdAt: null, // Skip timestamp fetching for performance
+      }));
 
-      // Sort by creation date (newest first) or by campaign ID if no date
-      myCampaigns.sort((a, b) => {
-        if (a.createdAt && b.createdAt) {
-          return b.createdAt - a.createdAt;
-        }
-        return parseInt(b.id) - parseInt(a.id);
-      });
+      // Sort by campaign ID (higher = newer)
+      myCampaigns.sort((a, b) => parseInt(b.id) - parseInt(a.id));
 
       setCampaigns(myCampaigns);
     } catch (error) {

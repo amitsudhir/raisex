@@ -17,40 +17,21 @@ const MyDonations = ({ account }) => {
   const loadMyDonations = async () => {
     try {
       setLoading(true);
-      const { contract } = await getReadOnlyContract();
-      const allCampaigns = await contract.getAllCampaigns();
+      const { getUserDonations } = await import("../utils/dataCache");
+      const userDonations = await getUserDonations(account);
 
       // Get stored donation data
       const storedDonations = getStoredDonations(account);
 
-      const myDonations = [];
-      for (const campaign of allCampaigns) {
-        const contribution = await contract.getContribution(campaign.id, account);
-        if (contribution > 0) {
-          // Get stored donations for this campaign
-          const stored = storedDonations[campaign.id.toString()] || [];
+      const myDonations = userDonations.map(({ campaign, contribution }) => ({
+        campaign,
+        contribution: ethers.formatEther(contribution),
+        storedTransactions: (storedDonations[campaign.id.toString()] || [])
+          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+      }));
 
-          myDonations.push({
-            campaign,
-            contribution: ethers.formatEther(contribution),
-            storedTransactions: stored.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-          });
-        }
-      }
-
-      // Sort donations by newest first
-      myDonations.sort((a, b) => {
-        const aLatestStored = a.storedTransactions.length > 0 ? 
-          Math.max(...a.storedTransactions.map(tx => tx.timestamp || 0)) : 0;
-        const bLatestStored = b.storedTransactions.length > 0 ? 
-          Math.max(...b.storedTransactions.map(tx => tx.timestamp || 0)) : 0;
-        
-        if (aLatestStored && bLatestStored) {
-          return bLatestStored - aLatestStored;
-        }
-        // Finally by campaign ID (higher = newer)
-        return parseInt(b.campaign.id) - parseInt(a.campaign.id);
-      });
+      // Sort donations by campaign ID (higher = newer)
+      myDonations.sort((a, b) => parseInt(b.campaign.id) - parseInt(a.campaign.id));
 
       setDonations(myDonations);
     } catch (error) {

@@ -2,8 +2,6 @@
 
 RaiseX — Trust, Raised on Chain. A decentralized crowdfunding platform where you can create campaigns, donate to causes, and track funding progress.
 
-<!-- Updated: Campaigns now visible to all users without wallet connection -->
-
 **Live Platform**: [https://crowdfundweb.vercel.app/](https://crowdfundweb.vercel.app/)
 
 ## Getting Started
@@ -39,17 +37,20 @@ RaiseX — Trust, Raised on Chain. A decentralized crowdfunding platform where y
 ## Using the Platform
 
 ### Creating a Campaign
-1. Click "➕ Create Campaign" button
+1. Click "Create Campaign" button
 2. Fill out the form:
    - **Title**: Name of your campaign
    - **Description**: What you're raising funds for
    - **Goal Amount**: How much ETH you need
    - **Deadline**: When the campaign ends
+   - **Image**: Upload a campaign image (stored on IPFS)
    - **Category**: Type of campaign
    - **Creator Info**: Your name or organization
 3. Click "Create Campaign"
 4. Confirm the transaction in MetaMask
 5. Wait for confirmation
+
+**Note**: Campaign images are stored on IPFS (decentralized storage) for permanent availability.
 
 ### Donating to Campaigns
 1. Browse campaigns on the main page
@@ -60,17 +61,28 @@ RaiseX — Trust, Raised on Chain. A decentralized crowdfunding platform where y
 
 ### Managing Your Activities
 Navigate using the tabs at the top:
-- **All Campaigns**: Browse all available campaigns
-- **My Campaigns**: View campaigns you've created
-- **My Donations**: See your donation history
-- **My Withdrawals**: Track withdrawal records
-- **Analytics**: View platform statistics
+- **Home**: Browse all available campaigns and platform overview
+- **My Campaigns**: View and manage campaigns you've created
+- **My Donations**: See your complete donation history with transaction details
+- **My Withdrawals**: Track your withdrawal records and transaction history
+- **Analytics**: View platform statistics and insights
+- **FAQ**: Get answers to frequently asked questions
 
 ### Withdrawing Funds (Campaign Creators)
+**Important**: You can only withdraw funds after your campaign reaches its goal and the deadline passes.
+
 1. Go to "My Campaigns" tab
-2. Find your funded campaign
-3. Click "Withdraw Funds"
-4. Confirm the transaction in MetaMask
+2. Find your successful campaign (goal reached)
+3. **Upload Proof of Fund Utilization**:
+   - Click on your campaign to view details
+   - Upload documents showing how you plan to use/used the funds
+   - Proof documents are permanently stored on IPFS
+4. Once proof is uploaded, return to "My Campaigns"
+5. Click "Withdraw Funds" button (now available)
+6. Confirm the transaction in MetaMask
+7. Track your withdrawal in "My Withdrawals" tab
+
+**Note**: Proof of fund utilization is mandatory before withdrawal. This ensures transparency and builds trust with donors.
 
 ## Troubleshooting
 
