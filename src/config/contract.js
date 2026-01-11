@@ -605,12 +605,18 @@ export const getContract = async () => {
  * Get contract instance for read-only operations
  */
 export const getReadOnlyContract = async () => {
-  if (!window.ethereum) {
-    throw new Error("MetaMask not installed");
+  // For read-only operations, we can use a public RPC provider
+  // This allows users without MetaMask to view campaigns
+  let provider;
+  
+  if (window.ethereum) {
+    // Use MetaMask provider if available
+    provider = new ethers.BrowserProvider(window.ethereum);
+  } else {
+    // Use public RPC provider for read-only access
+    provider = new ethers.JsonRpcProvider("https://sepolia.base.org");
   }
 
-  const provider = new ethers.BrowserProvider(window.ethereum);
   const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-
   return { contract, provider };
 };
