@@ -109,12 +109,6 @@ const CreateCampaign = ({ onSuccess, onClose, standalone = false }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate image is uploaded
-    if (!formData.imageURI) {
-      toast.error("Campaign image is required! Please upload an image.");
-      return;
-    }
-    
     setLoading(true);
 
     try {
@@ -268,7 +262,6 @@ const CreateCampaign = ({ onSuccess, onClose, standalone = false }) => {
                     accept=".jpg,.jpeg,.png"
                     onChange={handleImageSelect}
                     style={styles.hiddenInput}
-                    required
                   />
                   <label htmlFor="campaign-image-input" style={styles.uploadLabel}>
                     Choose Image (JPG, PNG) *
@@ -293,13 +286,12 @@ const CreateCampaign = ({ onSuccess, onClose, standalone = false }) => {
                 
                 <div style={styles.urlOption}>
                   <input
-                    type="url"
+                    type="text"
                     name="imageURI"
                     value={formData.imageURI}
                     onChange={handleChange}
                     style={styles.input}
                     placeholder="Paste image URL here"
-                    required
                   />
                 </div>
               </div>
@@ -358,8 +350,8 @@ const CreateCampaign = ({ onSuccess, onClose, standalone = false }) => {
                 Cancel
               </button>
             )}
-            <button type="submit" style={formData.imageURI ? styles.submitBtn : styles.submitBtnDisabled} disabled={loading || !formData.imageURI}>
-              {loading ? "Creating..." : !formData.imageURI ? "Upload Image First" : "Create Campaign"}
+            <button type="submit" style={styles.submitBtn} disabled={loading}>
+              {loading ? "Creating..." : "Create Campaign"}
             </button>
           </div>
         </form>

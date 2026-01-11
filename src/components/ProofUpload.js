@@ -78,12 +78,6 @@ const ProofUpload = ({ campaignId, onProofUploaded }) => {
       return;
     }
 
-    // Check if Pinata API key is configured
-    if (!process.env.REACT_APP_PINATA_JWT) {
-      toast.error('IPFS upload not configured. Please set PINATA_JWT environment variable.');
-      return;
-    }
-
     setUploading(true);
     try {
       toast.info('Uploading to IPFS...');

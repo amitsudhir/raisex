@@ -67,11 +67,16 @@ const MyCampaigns = ({ account }) => {
       // Find the campaign to get details
       const campaign = campaigns.find(c => c.id === campaignId);
       
-      toast.info("Initiating withdrawal...");
+      toast.info("Please confirm withdrawal in MetaMask...");
       const tx = await contract.withdraw(campaignId);
       
-      toast.info("Transaction submitted. Waiting for confirmation...");
+      toast.info("Transaction submitted. Waiting for blockchain confirmation...");
       const receipt = await tx.wait();
+      
+      // Only proceed if transaction was successful
+      if (receipt.status !== 1) {
+        throw new Error("Transaction failed");
+      }
       
       // Store withdrawal data for future reference
       if (campaign && receipt.hash) {
@@ -90,8 +95,17 @@ const MyCampaigns = ({ account }) => {
         );
       }
       
-      toast.success("Funds withdrawn successfully!");
+      toast.success("Withdrawal confirmed! Funds transferred successfully.");
+      
+      // Invalidate cache and reload campaigns
+      const { invalidateCache } = await import("../utils/dataCache");
+      invalidateCache();
       loadMyCampaigns();
+      
+      // Also refresh the page after a short delay to ensure all components update
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     } catch (error) {
       console.error("Withdrawal failed:", error);
       toast.error("Withdrawal failed: " + (error.reason || error.message));
