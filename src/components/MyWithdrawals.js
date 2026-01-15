@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
 import { getReadOnlyContract } from "../config/contract";
 import { CURRENCY, ethToInr, CONTRACT_ADDRESS } from "../config/config";
@@ -7,6 +8,7 @@ import { getStoredWithdrawals } from "../utils/withdrawalTracker";
 const MyWithdrawals = ({ account }) => {
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (account) {
@@ -147,7 +149,10 @@ const MyWithdrawals = ({ account }) => {
             <div key={index} style={styles.card}>
               <div style={styles.cardHeader}>
                 <div style={styles.campaignInfo}>
-                  <div style={styles.campaignTitle}>
+                  <div 
+                    style={styles.campaignTitle}
+                    onClick={() => navigate(`/campaign/${withdrawal.campaignId}`)}
+                  >
                     {withdrawal.campaignTitle}
                   </div>
                   <div style={styles.campaignId}>
@@ -351,6 +356,9 @@ const styles = {
     fontWeight: "700",
     color: "#1f2937",
     marginBottom: "0.5rem",
+    cursor: "pointer",
+    transition: "color 0.2s ease",
+    textDecoration: "underline",
   },
   campaignId: {
     fontSize: "0.9rem",

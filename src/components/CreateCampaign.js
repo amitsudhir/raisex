@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { getContract } from "../config/contract";
 import { CATEGORIES, CURRENCY, inrToEth } from "../config/config";
 import { notifyTransactionSubmitted, notifyTransactionConfirmed, notifyTransactionFailed } from "../utils/notifications";
+import { getCampaignImage } from "../utils/categoryImages";
 
 const CreateCampaign = ({ onSuccess, onClose, standalone = false }) => {
   const [formData, setFormData] = useState({
@@ -125,7 +126,7 @@ const CreateCampaign = ({ onSuccess, onClose, standalone = false }) => {
         formData.description,
         goalInWei,
         durationInSeconds,
-        formData.imageURI,
+        getCampaignImage(formData.imageURI, formData.category), // Use category image if no custom image
         formData.category,
         formData.creatorInfo
       );
@@ -247,9 +248,9 @@ const CreateCampaign = ({ onSuccess, onClose, standalone = false }) => {
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>Campaign Banner Image *</label>
-            <div style={styles.requiredNote}>
-              A campaign image is required to create your campaign
+            <label style={styles.label}>Campaign Banner Image</label>
+            <div style={styles.optionalNote}>
+              Upload a custom image or use the default category image
             </div>
             
             {/* Image Upload Section */}
@@ -297,33 +298,31 @@ const CreateCampaign = ({ onSuccess, onClose, standalone = false }) => {
               </div>
               
               {/* Image Preview */}
-              {formData.imageURI && (
-                <div style={styles.imagePreview}>
-                  <div style={styles.imagePreviewHeader}>
-                    <span style={styles.imagePreviewLabel}>Campaign Image Preview:</span>
-                    <span style={styles.imageSuccess}>Image Ready</span>
-                  </div>
-                  <img 
-                    src={formData.imageURI} 
-                    alt="Campaign preview" 
-                    style={styles.previewImage}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      toast.error('Invalid image URL. Please upload a valid image.');
-                      setFormData({...formData, imageURI: ''});
-                    }}
-                  />
-                </div>
-              )}
-              
-              {!formData.imageURI && (
-                <div style={styles.imageRequired}>
-                  <span style={styles.imageRequiredIcon}>!</span>
-                  <span style={styles.imageRequiredText}>
-                    Please upload an image or provide a valid image URL to continue
+              <div style={styles.imagePreview}>
+                <div style={styles.imagePreviewHeader}>
+                  <span style={styles.imagePreviewLabel}>
+                    {formData.imageURI ? "Custom Campaign Image:" : `Default ${formData.category} Image:`}
+                  </span>
+                  <span style={formData.imageURI ? styles.imageSuccess : styles.imageDefault}>
+                    {formData.imageURI ? "Custom Image" : "Category Default"}
                   </span>
                 </div>
-              )}
+                <img 
+                  src={getCampaignImage(formData.imageURI, formData.category)} 
+                  alt="Campaign preview" 
+                  style={styles.previewImage}
+                  onError={(e) => {
+                    // Fallback to placeholder if even category image fails
+                    e.target.src = "https://via.placeholder.com/400x200?text=Campaign";
+                  }}
+                />
+                {!formData.imageURI && (
+                  <div style={styles.categoryImageNote}>
+                    This default image will be used for your {formData.category} campaign. 
+                    Upload a custom image above to replace it.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -496,11 +495,12 @@ const styles = {
     padding: "1rem",
     background: "#f0fdf4",
   },
-  requiredNote: {
+  optionalNote: {
     fontSize: "0.85rem",
-    color: "#ef4444",
+    color: "#6b7280",
     marginBottom: "0.5rem",
     fontWeight: "500",
+    fontStyle: "italic",
   },
   uploadOptions: {
     display: "flex",
@@ -581,31 +581,24 @@ const styles = {
     fontWeight: "600",
     color: "#10b981",
   },
+  imageDefault: {
+    fontSize: "0.85rem",
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  categoryImageNote: {
+    fontSize: "0.8rem",
+    color: "#6b7280",
+    fontStyle: "italic",
+    marginTop: "0.5rem",
+    textAlign: "center",
+    lineHeight: "1.4",
+  },
   previewImage: {
     maxWidth: "100%",
     maxHeight: "200px",
     borderRadius: "8px",
     boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-  },
-  imageRequired: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    padding: "1rem",
-    background: "#fef3c7",
-    border: "1px solid #f59e0b",
-    borderRadius: "8px",
-    marginTop: "1rem",
-  },
-  imageRequiredIcon: {
-    fontSize: "1.2rem",
-    color: "#f59e0b",
-    fontWeight: "bold",
-  },
-  imageRequiredText: {
-    fontSize: "0.9rem",
-    color: "#92400e",
-    fontWeight: "500",
   },
 };
 

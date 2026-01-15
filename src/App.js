@@ -9,6 +9,7 @@ import CreateCampaign from "./components/CreateCampaign";
 import Analytics from "./components/Analytics";
 import MyDonations from "./components/MyDonations";
 import MyWithdrawals from "./components/MyWithdrawals";
+import MyRefunds from "./components/MyRefunds";
 import MyCampaigns from "./components/MyCampaigns";
 import CampaignDetail from "./components/CampaignDetail";
 import FAQ from "./components/FAQ";
@@ -16,7 +17,6 @@ import Terms from "./components/Terms";
 import Privacy from "./components/Privacy";
 import Footer from "./components/Footer";
 import NetworkChecker from "./components/NetworkChecker";
-import PerformanceDashboard from "./components/PerformanceDashboard";
 import { getReadOnlyContract } from "./config/contract";
 import { notifyWalletConnected, requestNotificationPermission } from "./utils/notifications";
 
@@ -122,6 +122,9 @@ function App() {
           <Route path="/my-withdrawals" element={
             <MyWithdrawals account={account} />
           } />
+          <Route path="/my-refunds" element={
+            <MyRefunds account={account} />
+          } />
           <Route path="/analytics" element={
             <Analytics />
           } />
@@ -151,9 +154,6 @@ function App() {
           pauseOnHover
           theme="light"
         />
-        
-        {/* Performance Dashboard - only show in development */}
-        {process.env.NODE_ENV === 'development' && <PerformanceDashboard />}
       </div>
     </Router>
   );

@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { getReadOnlyContract } from "../config/contract";
+import { getReadOnlyContract, getContract } from "../config/contract";
 import { CURRENCY, ethToInr, CONTRACT_ADDRESS } from "../config/config";
 import { getStoredDonations } from "../utils/donationTracker";
+import { getStoredRefunds } from "../utils/refundTracker";
+import { toast } from "react-toastify";
+import { notifyTransactionSubmitted, notifyTransactionConfirmed, notifyTransactionFailed } from "../utils/notifications";
+import { storeRefund } from "../utils/refundTracker";
+import { useNavigate } from "react-router-dom";
 
 const MyDonations = ({ account }) => {
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refunding, setRefunding] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (account) {
@@ -20,15 +27,29 @@ const MyDonations = ({ account }) => {
       const { getUserDonations } = await import("../utils/dataCache");
       const userDonations = await getUserDonations(account);
 
-      // Get stored donation data
+      // Get stored donation and refund data
       const storedDonations = getStoredDonations(account);
+      const storedRefunds = getStoredRefunds(account);
 
-      const myDonations = userDonations.map(({ campaign, contribution }) => ({
-        campaign,
-        contribution: ethers.formatEther(contribution),
-        storedTransactions: (storedDonations[campaign.id.toString()] || [])
-          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-      }));
+      const myDonations = userDonations.map(({ campaign, contribution }) => {
+        const now = Math.floor(Date.now() / 1000);
+        const deadline = Number(campaign.deadline);
+        const isExpired = now >= deadline;
+        const goalReached = campaign.raisedAmount >= campaign.goalAmount;
+        const canRefund = isExpired && !goalReached && !campaign.withdrawn;
+        const hasRefund = storedRefunds[campaign.id.toString()];
+        
+        return {
+          campaign,
+          contribution: ethers.formatEther(contribution),
+          storedTransactions: (storedDonations[campaign.id.toString()] || [])
+            .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)),
+          canRefund: canRefund && !hasRefund, // Can't refund if already refunded
+          isExpired,
+          goalReached,
+          refundTransaction: hasRefund
+        };
+      });
 
       // Sort donations by campaign ID (higher = newer)
       myDonations.sort((a, b) => parseInt(b.campaign.id) - parseInt(a.campaign.id));
@@ -38,6 +59,52 @@ const MyDonations = ({ account }) => {
       console.error("Failed to load donations:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefund = async (campaignId, contribution, campaignTitle) => {
+    try {
+      setRefunding(campaignId);
+      const { contract, provider } = await getContract();
+      
+      toast.info("Please confirm refund claim in MetaMask...");
+      const tx = await contract.claimRefund(campaignId);
+      
+      await notifyTransactionSubmitted(tx.hash);
+      const receipt = await tx.wait();
+      
+      if (receipt.status === 1) {
+        // Store refund data for future reference
+        if (receipt.hash) {
+          // Get block details for timestamp
+          const block = await provider.getBlock(receipt.blockNumber);
+          const timestamp = block ? block.timestamp * 1000 : Date.now();
+          
+          storeRefund(
+            account,
+            campaignId.toString(),
+            receipt.hash,
+            contribution,
+            campaignTitle,
+            receipt.blockNumber,
+            timestamp
+          );
+        }
+        
+        await notifyTransactionConfirmed('refund', {
+          body: `Successfully claimed refund of ${contribution} ETH`
+        });
+        
+        // Reload donations to update the UI
+        loadMyDonations();
+      } else {
+        await notifyTransactionFailed("Transaction failed", "refund");
+      }
+    } catch (error) {
+      console.error("Refund failed:", error);
+      await notifyTransactionFailed(error.message, "refund");
+    } finally {
+      setRefunding(null);
     }
   };
 
@@ -86,20 +153,28 @@ const MyDonations = ({ account }) => {
       <div style={styles.header}>
         <h2 style={styles.title}>My Donations</h2>
         
-        <div style={styles.totalCard}>
-          <div style={styles.totalLabel}>Total Donated</div>
-          <div style={styles.totalValue}>
-            {CURRENCY.symbol}{ethToInr(totalDonated.toFixed(6))}
+        {donations.length > 0 && (
+          <div style={styles.totalCard}>
+            <div style={styles.totalLabel}>Total Donated</div>
+            <div style={styles.totalValue}>
+              {CURRENCY.symbol}{ethToInr(totalDonated.toFixed(4))}
+            </div>
+            <div style={styles.totalEth}>{totalDonated.toFixed(4)} ETH</div>
+            <div style={styles.donationCount}>{donations.length} donation{donations.length !== 1 ? 's' : ''}</div>
           </div>
-          <div style={styles.totalEth}>{totalDonated.toFixed(6)} ETH</div>
-        </div>
+        )}
       </div>
 
       <div style={styles.list}>
         {donations.map((donation, index) => (
           <div key={index} style={styles.donationCard}>
             <div style={styles.donationHeader}>
-              <h3 style={styles.campaignTitle}>{donation.campaign.title}</h3>
+              <h3 
+                style={styles.campaignTitle}
+                onClick={() => navigate(`/campaign/${donation.campaign.id.toString()}`)}
+              >
+                {donation.campaign.title}
+              </h3>
               <div style={styles.category}>{donation.campaign.category}</div>
             </div>
             <div style={styles.donationBody}>
@@ -132,6 +207,49 @@ const MyDonations = ({ account }) => {
                   {ethToInr(ethers.formatEther(donation.campaign.goalAmount))}
                 </div>
               </div>
+            </div>
+            
+            {/* Campaign Status and Refund Section */}
+            <div style={styles.statusSection}>
+              {donation.goalReached && (
+                <div style={styles.statusBadge}>
+                  <span style={styles.successBadge}>✓ Campaign Successful</span>
+                </div>
+              )}
+              {donation.isExpired && !donation.goalReached && (
+                <div style={styles.statusBadge}>
+                  <span style={styles.failedBadge}>✗ Campaign Failed</span>
+                </div>
+              )}
+              {!donation.isExpired && !donation.goalReached && (
+                <div style={styles.statusBadge}>
+                  <span style={styles.activeBadge}>⏳ Campaign Active</span>
+                </div>
+              )}
+              
+              {donation.canRefund && (
+                <button
+                  onClick={() => handleRefund(donation.campaign.id, donation.contribution, donation.campaign.title)}
+                  disabled={refunding === donation.campaign.id.toString()}
+                  style={styles.refundButton}
+                >
+                  {refunding === donation.campaign.id.toString() ? "Processing..." : `Claim Refund (${donation.contribution} ETH)`}
+                </button>
+              )}
+              
+              {donation.refundTransaction && (
+                <div style={styles.refundCompleted}>
+                  <span style={styles.refundCompletedText}>✓ Refund Claimed: {donation.refundTransaction.amount} ETH</span>
+                  <a
+                    href={donation.refundTransaction.blockExplorerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={styles.refundTxLink}
+                  >
+                    View Transaction
+                  </a>
+                </div>
+              )}
             </div>
             
             {/* Transaction Links Section */}
@@ -199,6 +317,7 @@ const styles = {
     borderRadius: "20px",
     color: "white",
     textAlign: "center",
+    boxShadow: "0 8px 25px rgba(102, 126, 234, 0.3)",
   },
   totalLabel: {
     fontSize: "1rem",
@@ -213,6 +332,12 @@ const styles = {
   totalEth: {
     fontSize: "1rem",
     opacity: 0.8,
+    marginBottom: "0.5rem",
+  },
+  donationCount: {
+    fontSize: "0.9rem",
+    opacity: 0.9,
+    fontWeight: "500",
   },
   list: {
     display: "flex",
@@ -238,6 +363,9 @@ const styles = {
     fontWeight: "600",
     color: "#1f2937",
     margin: 0,
+    cursor: "pointer",
+    transition: "color 0.2s ease",
+    textDecoration: "underline",
   },
   category: {
     background: "#f3f4f6",
@@ -287,6 +415,80 @@ const styles = {
   progressText: {
     fontSize: "0.85rem",
     color: "#6b7280",
+  },
+  statusSection: {
+    marginTop: "1rem",
+    paddingTop: "1rem",
+    borderTop: "1px solid #e5e7eb",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: "1rem",
+  },
+  statusBadge: {
+    display: "flex",
+    alignItems: "center",
+  },
+  successBadge: {
+    background: "#dcfce7",
+    color: "#166534",
+    padding: "0.5rem 1rem",
+    borderRadius: "20px",
+    fontSize: "0.85rem",
+    fontWeight: "600",
+    border: "1px solid #bbf7d0",
+  },
+  failedBadge: {
+    background: "#fef2f2",
+    color: "#dc2626",
+    padding: "0.5rem 1rem",
+    borderRadius: "20px",
+    fontSize: "0.85rem",
+    fontWeight: "600",
+    border: "1px solid #fecaca",
+  },
+  activeBadge: {
+    background: "#eff6ff",
+    color: "#2563eb",
+    padding: "0.5rem 1rem",
+    borderRadius: "20px",
+    fontSize: "0.85rem",
+    fontWeight: "600",
+    border: "1px solid #dbeafe",
+  },
+  refundButton: {
+    padding: "0.75rem 1.5rem",
+    background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+    color: "white",
+    border: "none",
+    borderRadius: "10px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
+  },
+  refundCompleted: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    padding: "1rem",
+    background: "#f0f9ff",
+    border: "2px solid #0ea5e9",
+    borderRadius: "10px",
+  },
+  refundCompletedText: {
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    color: "#0c4a6e",
+  },
+  refundTxLink: {
+    fontSize: "0.85rem",
+    color: "#0ea5e9",
+    textDecoration: "none",
+    fontWeight: "500",
+    alignSelf: "flex-start",
   },
   transactionSection: {
     marginTop: "1rem",

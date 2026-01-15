@@ -5,9 +5,11 @@ import { getContract } from "../config/contract";
 import { CURRENCY, ethToInr, inrToEth } from "../config/config";
 import { storeWithdrawal } from "../utils/withdrawalTracker";
 import { storeDonation } from "../utils/donationTracker";
+import { storeRefund, getRefundForCampaign } from "../utils/refundTracker";
 import { notifyTransactionSubmitted, notifyTransactionConfirmed, notifyTransactionFailed } from "../utils/notifications";
 import ProofUpload from "./ProofUpload";
 import ProofViewer from "./ProofViewer";
+import { getCampaignImage } from "../utils/categoryImages";
 
 const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = false }) => {
   const [donateAmount, setDonateAmount] = useState("");
@@ -17,10 +19,13 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = fa
   const [status, setStatus] = useState("ACTIVE");
   const [contract, setContract] = useState(null);
   const [proofCount, setProofCount] = useState(0);
+  const [creationTime, setCreationTime] = useState(null);
+  const [refundStatus, setRefundStatus] = useState(null);
 
   useEffect(() => {
     loadMyContribution();
     updateTimeLeft();
+    checkRefundStatus();
     const interval = setInterval(updateTimeLeft, 1000);
     return () => clearInterval(interval);
   }, [campaign, account]);
@@ -41,7 +46,22 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = fa
         console.error("Failed to load contract:", error);
       }
     };
+    
+    // Load campaign creation time
+    const loadCreationTime = async () => {
+      if (campaign?.id) {
+        try {
+          const { getCampaignCreationTime } = await import("../utils/dataCache");
+          const creationData = await getCampaignCreationTime(campaign.id);
+          setCreationTime(creationData);
+        } catch (error) {
+          console.error("Failed to load creation time:", error);
+        }
+      }
+    };
+    
     loadContract();
+    loadCreationTime();
   }, [campaign?.id]);
 
   const copyShareLink = () => {
@@ -61,6 +81,17 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = fa
       setMyContribution(ethers.formatEther(contribution));
     } catch (error) {
       console.error("Failed to load contribution:", error);
+    }
+  };
+
+  const checkRefundStatus = () => {
+    if (!account || !campaign?.id) return;
+    
+    try {
+      const refund = getRefundForCampaign(account, campaign.id.toString());
+      setRefundStatus(refund);
+    } catch (error) {
+      console.error("Failed to check refund status:", error);
     }
   };
 
@@ -212,7 +243,7 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = fa
   const handleRefund = async () => {
     setLoading(true);
     try {
-      const { contract } = await getContract();
+      const { contract, provider } = await getContract();
       
       // Show initial confirmation request
       toast.info("Please confirm refund claim in MetaMask...");
@@ -227,9 +258,32 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = fa
       
       // Only show success after confirmation
       if (receipt.status === 1) {
+        // Store refund data for future reference
+        if (receipt.hash) {
+          // Get block details for timestamp
+          const block = await provider.getBlock(receipt.blockNumber);
+          const timestamp = block ? block.timestamp * 1000 : Date.now();
+          
+          storeRefund(
+            account,
+            campaign.id.toString(),
+            receipt.hash,
+            myContribution,
+            campaign.title,
+            receipt.blockNumber,
+            timestamp
+          );
+          
+          // Update refund status immediately
+          checkRefundStatus();
+        }
+        
         await notifyTransactionConfirmed('refund', {
           body: `Successfully claimed refund of ${myContribution} ETH from ${campaign.title}`
         });
+        
+        // Refresh refund status
+        checkRefundStatus();
         onSuccess();
       } else {
         await notifyTransactionFailed("Transaction failed", "refund");
@@ -250,8 +304,9 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = fa
   const isOwner = account && account.toLowerCase() === campaign.owner.toLowerCase();
   const hasProofRequirement = isOwner && !campaign.withdrawn && status === "FUNDED" && proofCount === 0;
   const canWithdraw = isOwner && !campaign.withdrawn && status === "FUNDED" && proofCount > 0;
-  const canRefund = !isOwner && status === "EXPIRED" && parseFloat(myContribution) > 0;
+  const canRefund = status === "EXPIRED" && parseFloat(myContribution) > 0 && !refundStatus;
   const canDonate = status === "ACTIVE";
+  const shouldShowProofUpload = isOwner && status === "FUNDED" && !campaign.withdrawn;
 
   return (
     <div style={standalone ? styles.standalonePage : styles.overlay} onClick={standalone ? undefined : onClose}>
@@ -262,16 +317,15 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = fa
           </button>
         )}
 
-        {campaign.imageURI && (
-          <img
-            src={campaign.imageURI}
-            alt={campaign.title}
-            style={styles.image}
-            onError={(e) => {
-              e.target.style.display = "none";
-            }}
-          />
-        )}
+        <img
+          src={getCampaignImage(campaign.imageURI, campaign.category)}
+          alt={campaign.title}
+          style={styles.image}
+          onError={(e) => {
+            // Fallback to placeholder if even category image fails
+            e.target.src = "https://via.placeholder.com/400x200?text=Campaign";
+          }}
+        />
 
         <div style={styles.content}>
           <div style={styles.header}>
@@ -326,6 +380,16 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = fa
             <div style={styles.infoRow}>
               <span>Owner:</span>
               <span>{campaign.owner.slice(0, 6)}...{campaign.owner.slice(-4)}</span>
+            </div>
+            {creationTime && (
+              <div style={styles.infoRow}>
+                <span>Created:</span>
+                <span>{new Date(creationTime.timestamp).toLocaleString()}</span>
+              </div>
+            )}
+            <div style={styles.infoRow}>
+              <span>Deadline:</span>
+              <span>{new Date(Number(campaign.deadline) * 1000).toLocaleString()}</span>
             </div>
             {parseFloat(myContribution) > 0 && (
               <div style={styles.infoRow}>
@@ -419,13 +483,75 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = fa
           )}
 
           {canRefund && (
-            <button
-              onClick={handleRefund}
-              disabled={loading}
-              style={styles.refundBtn}
-            >
-              {loading ? "Processing..." : "Claim Refund"}
-            </button>
+            <div style={styles.refundSection}>
+              <div style={styles.refundContent}>
+                <h4 style={styles.refundTitle}>Campaign Failed - Refund Available</h4>
+                <p style={styles.refundText}>
+                  This campaign did not reach its funding goal by the deadline. 
+                  You can claim a full refund of your contribution: {myContribution} ETH
+                </p>
+                <button
+                  onClick={handleRefund}
+                  disabled={loading}
+                  style={styles.refundBtn}
+                >
+                  {loading ? "Processing..." : `Claim Refund (${myContribution} ETH)`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {refundStatus && status === "EXPIRED" && (
+            <div style={styles.refundCompletedSection}>
+              <div style={styles.refundCompletedContent}>
+                <h4 style={styles.refundCompletedTitle}>🎉 Refund Successfully Received!</h4>
+                <p style={styles.refundCompletedText}>
+                  Great news! You've successfully received your refund of {refundStatus.amount} ETH from this campaign.
+                </p>
+                <div style={styles.refundSummary}>
+                  <div style={styles.refundSummaryItem}>
+                    <span style={styles.refundLabel}>Amount Refunded</span>
+                    <span style={styles.refundValue}>{refundStatus.amount} ETH</span>
+                  </div>
+                  <div style={styles.refundSummaryItem}>
+                    <span style={styles.refundLabel}>Received On</span>
+                    <span style={styles.refundValue}>{new Date(refundStatus.timestamp).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <a
+                  href={refundStatus.blockExplorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={styles.viewTransactionBtn}
+                >
+                  View Transaction Details
+                </a>
+              </div>
+            </div>
+          )}
+
+          {status === "EXPIRED" && parseFloat(myContribution) > 0 && (
+            <div style={styles.expiredContributorSection}>
+              <div style={styles.expiredContent}>
+                <h4 style={styles.expiredTitle}>Campaign Failed</h4>
+                <p style={styles.expiredText}>
+                  This campaign did not reach its funding goal by the deadline. 
+                  {!refundStatus ? " You can claim a refund for your contribution." : " You have already claimed your refund."}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {status === "EXPIRED" && isOwner && (
+            <div style={styles.expiredOwnerSection}>
+              <div style={styles.expiredContent}>
+                <h4 style={styles.expiredTitle}>Campaign Failed</h4>
+                <p style={styles.expiredText}>
+                  Your campaign did not reach its funding goal by the deadline. 
+                  Donors can now claim refunds for their contributions.
+                </p>
+              </div>
+            </div>
           )}
 
           {!account && status !== "ACTIVE" && (
@@ -436,35 +562,37 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = fa
             </div>
           )}
 
-          {/* Proof of Fund Utilization Section */}
-          <div style={styles.proofSection}>
-            {/* Show upload section only to campaign owner */}
-            {isOwner && contract && (
-              <ProofUpload 
-                campaignId={campaign.id.toString()}
-                onProofUploaded={async (ipfsHash) => {
-                  try {
-                    const tx = await contract.addUsageProof(campaign.id, ipfsHash);
-                    await tx.wait();
-                    // Update proof count
-                    setProofCount(prev => prev + 1);
-                    // Refresh the proof viewer
-                    window.location.reload();
-                  } catch (error) {
-                    console.error("Failed to add proof to contract:", error);
-                  }
-                }}
-              />
-            )}
-            
-            {/* Show proof viewer to everyone */}
-            {contract && (
-              <ProofViewer 
-                campaignId={campaign.id.toString()}
-                contract={contract}
-              />
-            )}
-          </div>
+          {/* Proof of Fund Utilization Section - Only for successful campaigns */}
+          {status === "FUNDED" && (
+            <div style={styles.proofSection}>
+              {/* Show upload section only to campaign owner for funded campaigns */}
+              {shouldShowProofUpload && contract && (
+                <ProofUpload 
+                  campaignId={campaign.id.toString()}
+                  onProofUploaded={async (ipfsHash) => {
+                    try {
+                      const tx = await contract.addUsageProof(campaign.id, ipfsHash);
+                      await tx.wait();
+                      // Update proof count
+                      setProofCount(prev => prev + 1);
+                      // Refresh the proof viewer
+                      window.location.reload();
+                    } catch (error) {
+                      console.error("Failed to add proof to contract:", error);
+                    }
+                  }}
+                />
+              )}
+              
+              {/* Show proof viewer to everyone for funded campaigns */}
+              {contract && (
+                <ProofViewer 
+                  campaignId={campaign.id.toString()}
+                  contract={contract}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -706,6 +834,121 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
   },
+  refundSection: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "1rem",
+    background: "#fef2f2",
+    border: "2px solid #ef4444",
+    borderRadius: "12px",
+    padding: "1.5rem",
+    marginBottom: "1rem",
+  },
+  refundContent: {
+    flex: 1,
+  },
+  refundTitle: {
+    fontSize: "1.1rem",
+    fontWeight: "700",
+    color: "#dc2626",
+    margin: "0 0 0.5rem 0",
+  },
+  refundText: {
+    fontSize: "0.95rem",
+    color: "#dc2626",
+    margin: "0 0 1rem 0",
+    lineHeight: "1.5",
+  },
+  refundCompletedSection: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "1rem",
+    background: "#f0f9ff",
+    border: "2px solid #0ea5e9",
+    borderRadius: "12px",
+    padding: "1.5rem",
+    marginBottom: "1rem",
+  },
+  refundCompletedContent: {
+    flex: 1,
+  },
+  refundCompletedTitle: {
+    fontSize: "1.1rem",
+    fontWeight: "700",
+    color: "#0c4a6e",
+    margin: "0 0 0.5rem 0",
+  },
+  refundCompletedText: {
+    fontSize: "0.95rem",
+    color: "#0c4a6e",
+    margin: "0 0 1rem 0",
+    lineHeight: "1.5",
+  },
+  refundDetails: {
+    background: "rgba(255, 255, 255, 0.7)",
+    padding: "1rem",
+    borderRadius: "8px",
+    border: "1px solid rgba(14, 165, 233, 0.2)",
+  },
+  refundDetailRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0.5rem 0",
+    borderBottom: "1px solid rgba(14, 165, 233, 0.1)",
+    fontSize: "0.9rem",
+  },
+  refundAmount: {
+    fontWeight: "700",
+    color: "#0ea5e9",
+  },
+  refundTxLink: {
+    display: "inline-block",
+    marginTop: "1rem",
+    padding: "0.75rem 1.5rem",
+    background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+    color: "white",
+    textDecoration: "none",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    transition: "all 0.2s ease",
+  },
+  expiredOwnerSection: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "1rem",
+    background: "#f3f4f6",
+    border: "2px solid #9ca3af",
+    borderRadius: "12px",
+    padding: "1.5rem",
+    marginBottom: "1rem",
+  },
+  expiredContributorSection: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "1rem",
+    background: "#fef3c7",
+    border: "2px solid #f59e0b",
+    borderRadius: "12px",
+    padding: "1.5rem",
+    marginBottom: "1rem",
+  },
+  expiredContent: {
+    flex: 1,
+  },
+  expiredTitle: {
+    fontSize: "1.1rem",
+    fontWeight: "700",
+    color: "#6b7280",
+    margin: "0 0 0.5rem 0",
+  },
+  expiredText: {
+    fontSize: "0.95rem",
+    color: "#6b7280",
+    margin: 0,
+    lineHeight: "1.5",
+  },
   refundBtn: {
     width: "100%",
     padding: "1rem",
@@ -806,6 +1049,42 @@ const styles = {
     color: "#6b7280",
     margin: 0,
     lineHeight: "1.5",
+  },
+  refundSummary: {
+    background: "rgba(255, 255, 255, 0.7)",
+    padding: "1rem",
+    borderRadius: "8px",
+    border: "1px solid rgba(14, 165, 233, 0.2)",
+    marginBottom: "1rem",
+  },
+  refundSummaryItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0.5rem 0",
+    borderBottom: "1px solid rgba(14, 165, 233, 0.1)",
+    fontSize: "0.9rem",
+  },
+  refundLabel: {
+    color: "#0c4a6e",
+    fontWeight: "500",
+  },
+  refundValue: {
+    fontWeight: "700",
+    color: "#0ea5e9",
+  },
+  viewTransactionBtn: {
+    display: "inline-block",
+    padding: "0.75rem 1.5rem",
+    background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+    color: "white",
+    textDecoration: "none",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    transition: "all 0.2s ease",
+    cursor: "pointer",
+    boxShadow: "0 2px 8px rgba(14, 165, 233, 0.3)",
   },
 };
 

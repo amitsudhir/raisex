@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CURRENCY, ethToInr } from "../config/config";
+import { getCampaignImage } from "../utils/categoryImages";
 
 const CampaignCard = ({ campaign, onClick }) => {
   const [timeLeft, setTimeLeft] = useState("");
@@ -75,18 +76,15 @@ const CampaignCard = ({ campaign, onClick }) => {
       onMouseLeave={() => setIsHovered(false)}
     >
       <div style={styles.imageContainer}>
-        {campaign.imageURI ? (
-          <img
-            src={campaign.imageURI}
-            alt={campaign.title}
-            style={styles.image}
-            onError={(e) => {
-              e.target.src = "https://via.placeholder.com/400x200?text=Campaign";
-            }}
-          />
-        ) : (
-          <div style={styles.placeholder}>No Image</div>
-        )}
+        <img
+          src={getCampaignImage(campaign.imageURI, campaign.category)}
+          alt={campaign.title}
+          style={styles.image}
+          onError={(e) => {
+            // Fallback to placeholder if even category image fails
+            e.target.src = "https://via.placeholder.com/400x200?text=Campaign";
+          }}
+        />
         <div style={{ ...styles.badge, background: getStatusColor() }}>
           {status}
         </div>
@@ -166,17 +164,6 @@ const styles = {
     width: "100%",
     height: "100%",
     objectFit: "cover",
-  },
-  placeholder: {
-    width: "100%",
-    height: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    fontSize: "1rem",
-    color: "white",
-    fontWeight: "600",
   },
   badge: {
     position: "absolute",

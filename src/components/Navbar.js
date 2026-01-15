@@ -22,6 +22,7 @@ const Navbar = ({ account, onConnect }) => {
     { path: "/my-campaigns", label: "My Campaigns" },
     { path: "/my-donations", label: "My Donations" },
     { path: "/my-withdrawals", label: "My Withdrawals" },
+    { path: "/my-refunds", label: "My Refunds" },
     { path: "/analytics", label: "Analytics" },
     { path: "/faq", label: "FAQ" },
   ];
@@ -78,17 +79,18 @@ const styles = {
     zIndex: 1000,
   },
   container: {
-    maxWidth: "1200px",
+    maxWidth: "1400px", // Increased max width
     margin: "0 auto",
     padding: "0 1rem",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: "2rem",
+    gap: "1rem", // Reduced gap
   },
   brand: {
     display: "flex",
     alignItems: "center",
+    minWidth: "120px", // Ensure brand has minimum space
   },
   brandLink: {
     textDecoration: "none",
@@ -101,20 +103,21 @@ const styles = {
   },
   navLinks: {
     display: "flex",
-    gap: "0.5rem",
+    gap: "0.3rem", // Reduced gap between nav items
     alignItems: "center",
     flex: 1,
     justifyContent: "center",
+    flexWrap: "wrap", // Allow wrapping if needed
   },
   navLink: {
     display: "flex",
     alignItems: "center",
     gap: "0.5rem",
-    padding: "0.5rem 1rem",
+    padding: "0.4rem 0.8rem", // Reduced padding
     borderRadius: "20px",
     textDecoration: "none",
     color: "rgba(255, 255, 255, 0.8)",
-    fontSize: "0.9rem",
+    fontSize: "0.85rem", // Slightly smaller font
     fontWeight: "500",
     transition: "all 0.3s ease",
     whiteSpace: "nowrap",
@@ -132,27 +135,32 @@ const styles = {
   },
   actions: {
     display: "flex",
-    gap: "1rem",
+    gap: "0.5rem", // Reduced gap
     alignItems: "center",
+    minWidth: "200px", // Ensure actions have minimum space
+    justifyContent: "flex-end",
   },
   accountInfo: {
     display: "flex",
-    gap: "0.5rem",
+    gap: "0.3rem", // Reduced gap
     alignItems: "center",
+    flexWrap: "wrap", // Allow wrapping if needed
   },
   network: {
     background: "rgba(255,255,255,0.2)",
     color: "white",
-    padding: "0.5rem 1rem",
-    borderRadius: "20px",
-    fontSize: "0.9rem",
+    padding: "0.4rem 0.8rem", // Reduced padding
+    borderRadius: "15px", // Smaller border radius
+    fontSize: "0.8rem", // Smaller font
+    fontWeight: "500",
   },
   address: {
     background: "white",
     color: "#667eea",
-    padding: "0.5rem 1rem",
-    borderRadius: "20px",
+    padding: "0.4rem 0.8rem", // Reduced padding
+    borderRadius: "15px", // Smaller border radius
     fontWeight: "600",
+    fontSize: "0.85rem", // Slightly smaller font
   },
   connectBtn: {
     background: "white",

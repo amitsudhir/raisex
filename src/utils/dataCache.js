@@ -43,11 +43,77 @@ export const getCachedCampaigns = async () => {
 };
 
 /**
+ * Get campaign creation timestamp from blockchain events
+ */
+export const getCampaignCreationTime = async (campaignId) => {
+  try {
+    const { getReadOnlyContract } = await import('../config/contract');
+    const { contract, provider } = await getReadOnlyContract();
+    
+    // Query CampaignCreated events for this specific campaign
+    const filter = contract.filters.CampaignCreated(campaignId);
+    const events = await contract.queryFilter(filter);
+    
+    if (events.length > 0) {
+      const block = await provider.getBlock(events[0].blockNumber);
+      return {
+        timestamp: block.timestamp * 1000, // Convert to milliseconds
+        blockNumber: events[0].blockNumber,
+        txHash: events[0].transactionHash
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Failed to get creation time for campaign ${campaignId}:`, error);
+    return null;
+  }
+};
+
+/**
+ * Get all campaigns with creation timestamps (cached)
+ */
+let campaignTimestampCache = new Map();
+
+export const getCampaignsWithTimestamps = async () => {
+  const campaigns = await getCachedCampaigns();
+  
+  // Add creation timestamps to campaigns that don't have them cached
+  const campaignsWithTimestamps = await Promise.all(
+    campaigns.map(async (campaign) => {
+      const campaignId = campaign.id.toString();
+      
+      // Check if we already have the timestamp cached
+      if (campaignTimestampCache.has(campaignId)) {
+        return {
+          ...campaign,
+          creationTime: campaignTimestampCache.get(campaignId)
+        };
+      }
+      
+      // Fetch creation time from blockchain
+      const creationTime = await getCampaignCreationTime(campaign.id);
+      if (creationTime) {
+        campaignTimestampCache.set(campaignId, creationTime);
+      }
+      
+      return {
+        ...campaign,
+        creationTime
+      };
+    })
+  );
+  
+  return campaignsWithTimestamps;
+};
+
+/**
  * Invalidate cache (call after creating/updating campaigns)
  */
 export const invalidateCache = () => {
   campaignCache = null;
   cacheTimestamp = null;
+  campaignTimestampCache.clear(); // Clear timestamp cache too
 };
 
 /**

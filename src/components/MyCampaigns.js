@@ -5,6 +5,7 @@ import { getReadOnlyContract, getContract } from "../config/contract";
 import { CURRENCY, ethToInr } from "../config/config";
 import { toast } from "react-toastify";
 import { storeWithdrawal } from "../utils/withdrawalTracker";
+import { getCampaignImage } from "../utils/categoryImages";
 
 const MyCampaigns = ({ account }) => {
   const [campaigns, setCampaigns] = useState([]);
@@ -255,10 +256,13 @@ const CampaignCard = ({ campaign, onWithdraw, withdrawing, onClick }) => {
       {/* Image Section - Fixed Height */}
       <div style={styles.cardImage}>
         <img
-          src={campaign.imageURI || "/fund.jpg"}
+          src={getCampaignImage(campaign.imageURI, campaign.category)}
           alt={campaign.title}
           style={styles.image}
-          onError={(e) => (e.target.src = "/fund.jpg")}
+          onError={(e) => {
+            // Fallback to placeholder if even category image fails
+            e.target.src = "https://via.placeholder.com/400x200?text=Campaign";
+          }}
         />
         <div style={styles.badge}>
           {campaign.withdrawn ? "Withdrawn" : campaign.isActive ? "Active" : "Ended"}
