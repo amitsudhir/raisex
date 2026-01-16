@@ -12,6 +12,7 @@ const MyRefunds = ({ account }) => {
     if (account) {
       loadMyRefunds();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account]);
 
   const loadMyRefunds = async () => {

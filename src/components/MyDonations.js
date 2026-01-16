@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { getReadOnlyContract, getContract } from "../config/contract";
-import { CURRENCY, ethToInr, CONTRACT_ADDRESS } from "../config/config";
+import { getContract } from "../config/contract";
+import { CURRENCY, ethToInr } from "../config/config";
 import { getStoredDonations } from "../utils/donationTracker";
 import { getStoredRefunds } from "../utils/refundTracker";
 import { toast } from "react-toastify";
@@ -19,6 +19,7 @@ const MyDonations = ({ account }) => {
     if (account) {
       loadMyDonations();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account]);
 
   const loadMyDonations = async () => {

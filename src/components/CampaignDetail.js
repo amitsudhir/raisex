@@ -28,6 +28,7 @@ const CampaignDetail = ({ campaign, account, onClose, onSuccess, standalone = fa
     checkRefundStatus();
     const interval = setInterval(updateTimeLeft, 1000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign, account]);
 
   useEffect(() => {

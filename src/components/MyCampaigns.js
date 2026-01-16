@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
-import { getReadOnlyContract, getContract } from "../config/contract";
+import { getContract } from "../config/contract";
 import { CURRENCY, ethToInr } from "../config/config";
 import { toast } from "react-toastify";
 import { storeWithdrawal } from "../utils/withdrawalTracker";
@@ -63,7 +63,8 @@ const MyCampaigns = ({ account }) => {
   const handleWithdraw = async (campaignId) => {
     try {
       setWithdrawing(campaignId);
-      const { contract, provider } = await getContract();
+      const { provider } = await getContract();
+      const { contract } = await getContract();
       
       // Find the campaign to get details
       const campaign = campaigns.find(c => c.id === campaignId);

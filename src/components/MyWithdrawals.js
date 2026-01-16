@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
-import { getReadOnlyContract } from "../config/contract";
-import { CURRENCY, ethToInr, CONTRACT_ADDRESS } from "../config/config";
+import { CURRENCY, ethToInr } from "../config/config";
 import { getStoredWithdrawals } from "../utils/withdrawalTracker";
 
 const MyWithdrawals = ({ account }) => {
@@ -17,21 +16,7 @@ const MyWithdrawals = ({ account }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account]);
 
-  // Helper function to store withdrawal data (for backward compatibility)
-  const storeWithdrawal = (campaignId, txHash, amount, title) => {
-    try {
-      const stored = getStoredWithdrawals(account);
-      stored[campaignId] = {
-        txHash,
-        amount,
-        title,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(`withdrawals_${account.toLowerCase()}`, JSON.stringify(stored));
-    } catch (error) {
-      console.error("Error storing withdrawal:", error);
-    }
-  };
+
 
   const loadWithdrawals = async () => {
     try {

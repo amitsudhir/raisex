@@ -8,6 +8,7 @@ const ProofViewer = ({ campaignId, contract }) => {
     if (campaignId && contract) {
       loadProofs();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId, contract]);
 
   const loadProofs = async () => {

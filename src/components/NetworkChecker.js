@@ -18,6 +18,7 @@ const NetworkChecker = () => {
         window.ethereum.removeListener("chainChanged", handleChainChanged);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleChainChanged = (chainId) => {

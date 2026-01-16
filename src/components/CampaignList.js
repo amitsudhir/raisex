@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getReadOnlyContract } from "../config/contract";
 import CampaignCard from "./CampaignCard";
 import CampaignDetail from "./CampaignDetail";
 import SearchBar from "./SearchBar";
-import { CATEGORIES } from "../config/config";
 
 const CampaignList = ({ account, refreshTrigger, showHeader = true }) => {
   const [campaigns, setCampaigns] = useState([]);
