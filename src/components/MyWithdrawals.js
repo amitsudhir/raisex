@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
-import { CURRENCY, ethToInr } from "../config/config";
+import { CURRENCY, ethToInr, CONTRACT_ADDRESS } from "../config/config";
 import { getStoredWithdrawals } from "../utils/withdrawalTracker";
 
 const MyWithdrawals = ({ account }) => {
