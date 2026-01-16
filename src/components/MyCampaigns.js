@@ -209,14 +209,12 @@ const MyCampaigns = ({ account }) => {
 
 const CampaignCard = ({ campaign, onWithdraw, withdrawing, onClick }) => {
   const [proofCount, setProofCount] = useState(0);
-  const [contract, setContract] = useState(null);
   const [isHovered, setIsHovered] = useState(false);
   
   useEffect(() => {
     const loadProofCount = async () => {
       try {
         const { contract } = await getContract();
-        setContract(contract);
         const proofs = await contract.getUsageProofs(campaign.id);
         setProofCount(proofs.length);
       } catch (error) {
